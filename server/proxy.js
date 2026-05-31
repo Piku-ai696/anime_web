@@ -40,7 +40,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://vjs.zencdn.net", "data:"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       mediaSrc: ["'self'", "blob:", "https:"],
-      connectSrc: ["'self'", "https://ucgxzganknweqfucjqqw.supabase.co", "*.infinityfreeapp.com", "*.infinityfree.com"],
+      connectSrc: ["'self'", "https://ucgxzganknweqfucjqqw.supabase.co", "*.infinityfreeapp.com", "*.infinityfree.com", "*.gt.tc", "*.onrender.com"],
       workerSrc: ["'self'", "blob:"],
     },
   },
@@ -51,7 +51,9 @@ app.use(helmet({
 // ── 2. CORS — Domain Restriction & Dynamic Origin Authorization ───────────────
 const allowedOrigins = [
   'http://localhost:3001',
-  'http://127.0.0.1:3001'
+  'http://127.0.0.1:3001',
+  'https://zyrox.gt.tc',
+  'http://zyrox.gt.tc'
 ];
 
 app.use(cors({
@@ -61,9 +63,10 @@ app.use(cors({
 
     const isLocal = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
     const isInfinityFree = origin.endsWith('.infinityfreeapp.com') || origin.endsWith('.infinityfree.com') || origin.includes('infinityfree');
+    const isGtTc = origin.endsWith('.gt.tc') || origin.includes('gt.tc');
     const isAllowedHardcoded = allowedOrigins.includes(origin);
 
-    if (isLocal || isInfinityFree || isAllowedHardcoded) {
+    if (isLocal || isInfinityFree || isGtTc || isAllowedHardcoded) {
       callback(null, true);
     } else {
       console.warn(`[CORS] Rejected Origin: ${origin}`);

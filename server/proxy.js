@@ -602,18 +602,18 @@ app.get('/api/catalog', apiLimiter, async (_req, res) => {
 
 // ── Details Page Route ────────────────────────────────────────────────────────
 app.get('/anime', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
 });
 app.get('/anime.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
 });
 
 // ── Theater Page Route ────────────────────────────────────────────────────────
 app.get('/theater', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
 });
 app.get('/theater.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

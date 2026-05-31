@@ -40,7 +40,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://vjs.zencdn.net", "data:"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       mediaSrc: ["'self'", "blob:", "https:"],
-      connectSrc: ["'self'", "https://ucgxzganknweqfucjqqw.supabase.co"],
+      connectSrc: ["'self'", "https://ucgxzganknweqfucjqqw.supabase.co", "*.infinityfreeapp.com", "*.infinityfree.com"],
       workerSrc: ["'self'", "blob:"],
     },
   },
@@ -48,12 +48,31 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-// ── 2. CORS — Domain Restriction ──────────────────────────────────────────────
-const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:3001';
+// ── 2. CORS — Domain Restriction & Dynamic Origin Authorization ───────────────
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://127.0.0.1:3001'
+];
+
 app.use(cors({
-  origin: allowedOrigin,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like server-to-server or postman)
+    if (!origin) return callback(null, true);
+
+    const isLocal = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+    const isInfinityFree = origin.endsWith('.infinityfreeapp.com') || origin.endsWith('.infinityfree.com') || origin.includes('infinityfree');
+    const isAllowedHardcoded = allowedOrigins.includes(origin);
+
+    if (isLocal || isInfinityFree || isAllowedHardcoded) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Rejected Origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST'],
   optionsSuccessStatus: 200,
+  credentials: true
 }));
 
 // ── 3. Rate Limiter — Anti-Scraping ──────────────────────────────────────────
@@ -583,18 +602,18 @@ app.get('/api/catalog', apiLimiter, async (_req, res) => {
 
 // ── Details Page Route ────────────────────────────────────────────────────────
 app.get('/anime', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'anime.html'));
 });
 app.get('/anime.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'anime.html'));
 });
 
 // ── Theater Page Route ────────────────────────────────────────────────────────
 app.get('/theater', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'theater.html'));
 });
 app.get('/theater.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'theater.html'));
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

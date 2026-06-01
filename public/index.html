@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-N041YDF91X"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-N041YDF91X');
+  </script>
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZyroX — Explore Anime</title>
+  <meta name="description" content="ZyroX — Premium anime catalog. Discover trending titles and stream instantly." />
+  <link href="/css/theater.css" rel="stylesheet" />
+  <style>
+    #catalog-search {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 24px;
+      padding: 10px 32px 10px 42px;
+      color: var(--text-primary, #fff);
+      font-family: var(--font, 'Inter', sans-serif);
+      font-size: 0.85rem;
+      width: 240px;
+      outline: none;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    #catalog-search:focus {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: var(--accent, #8B5CF6);
+      width: 320px;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 0 20px var(--accent-glow, rgba(139, 92, 246, 0.25));
+    }
+
+    #search-clear {
+      display: none;
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 500;
+      line-height: 1;
+      padding: 0;
+      outline: none;
+      transition: color 0.2s ease;
+    }
+
+    #search-clear:hover {
+      color: #fff;
+    }
+
+    .search-box-wrap svg {
+      transition: color 0.3s ease;
+    }
+
+    .search-box-wrap:focus-within svg {
+      stroke: var(--accent-bright, #A78BFA) !important;
+    }
+
+    @media (max-width: 600px) {
+      .search-box-wrap {
+        margin-right: 0 !important;
+      }
+
+      #catalog-search {
+        width: 140px;
+      }
+
+      #catalog-search:focus {
+        width: 180px;
+      }
+    }
+    /* ── Spotlight Slider Carousel ── */
+    .spotlight-slider-wrap {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      border-radius: var(--radius-lg, 12px);
+      overflow: hidden;
+      margin-top: 20px;
+      margin-bottom: 36px;
+      background: #0D0D0E;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .spotlight-slide {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0;
+      transition: opacity 0.8s ease-in-out;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .spotlight-slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 2;
+    }
+    .spotlight-bg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-size: cover;
+      background-position: center 25%;
+      filter: blur(4px) brightness(0.45);
+      transform: scale(1.03);
+    }
+    .spotlight-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(to top, #0A0A0B 0%, rgba(10, 10, 11, 0.7) 40%, transparent 100%),
+                  linear-gradient(to right, #0A0A0B 0%, rgba(10, 10, 11, 0.5) 50%, transparent 100%);
+    }
+    .spotlight-content {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%;
+      padding: 40px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 680px;
+    }
+    .spotlight-badge {
+      align-self: flex-start;
+      background: var(--accent, #8B5CF6);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 6px 14px;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px var(--accent-glow, rgba(139, 92, 246, 0.3));
+    }
+    .spotlight-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .spotlight-desc {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.7);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .spotlight-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .spotlight-meta-tag {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .spotlight-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .spotlight-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+    .spotlight-btn.primary {
+      background: #fff;
+      color: #0A0A0B;
+    }
+    .spotlight-btn.primary:hover {
+      background: var(--accent-bright, #A78BFA);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .spotlight-btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+    .spotlight-btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+    .slider-dots {
+      position: absolute;
+      bottom: 24px;
+      right: 40px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .slider-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .slider-dot.active {
+      background: var(--accent, #8B5CF6);
+      width: 24px;
+      border-radius: 4px;
+    }
+
+    /* ── Trending shelf scrolling row ── */
+    .trending-row-container {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+    }
+    .trending-row {
+      display: flex;
+      gap: 18px;
+      overflow-x: auto;
+      padding-bottom: 12px;
+      scroll-behavior: smooth;
+    }
+    .trending-row::-webkit-scrollbar {
+      height: 6px;
+    }
+    .trending-row::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 3px;
+    }
+    .trending-row::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+    .trending-row::-webkit-scrollbar-thumb:hover {
+      background: var(--accent, #8B5CF6);
+    }
+    .trending-card {
+      flex: 0 0 170px;
+      position: relative;
+      height: 250px;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      background: #121214;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    .trending-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.2);
+    }
+    .trending-poster {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .trending-card:hover .trending-poster {
+      transform: scale(1.05);
+    }
+    .trending-badge {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: rgba(10, 10, 11, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent-bright, #A78BFA);
+      z-index: 5;
+      backdrop-filter: blur(10px);
+    }
+    .trending-overlay {
+      position: absolute;
+      bottom: 0; left: 0; width: 100%;
+      padding: 16px;
+      box-sizing: border-box;
+      background: linear-gradient(to top, rgba(10, 10, 11, 0.95) 0%, rgba(10, 10, 11, 0.6) 60%, transparent 100%);
+      z-index: 4;
+    }
+    .trending-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .trending-meta {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.55);
+      margin-top: 4px;
+    }
+
+    /* ── Top 10 Global Chart ── */
+    .top10-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .top10-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .top10-item {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 16px 20px;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    .top10-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(139, 92, 246, 0.2);
+      transform: translateX(4px);
+    }
+    .top10-rank {
+      font-size: 3rem;
+      font-weight: 900;
+      color: rgba(255, 255, 255, 0.06);
+      line-height: 1;
+      margin-right: 20px;
+      transition: color 0.3s ease;
+      font-family: 'Outfit', 'Inter', sans-serif;
+    }
+    .top10-item:hover .top10-rank {
+      color: var(--accent-glow, rgba(139, 92, 246, 0.15));
+    }
+    .top10-poster-wrap {
+      width: 50px;
+      height: 70px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-right: 18px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    .top10-poster {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .top10-details {
+      flex: 1;
+      min-width: 0;
+    }
+    .top10-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+    }
+    .top10-meta {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.5);
+      display: flex;
+      gap: 8px;
+    }
+    .top10-tag {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .top10-chevron {
+      color: rgba(255, 255, 255, 0.25);
+      transition: all 0.3s ease;
+      margin-left: 10px;
+    }
+    .top10-item:hover .top10-chevron {
+      color: var(--accent, #8B5CF6);
+      transform: translateX(3px);
+    }
+  </style>
+</head>
+
+<body style="background-color: #0A0A0B;">
+
+  <div id="ambient-glow"></div>
+
+  <!-- Navigation -->
+  <nav class="nav-bar">
+    <a class="nav-brand" href="/">
+      <span class="logo"><span class="logo-zyro">zyro</span><span class="logo-x">X</span></span>
+      <span class="nav-badge">Catalog</span>
+    </a>
+    <div class="nav-actions">
+      <div class="search-box-wrap" style="position:relative; display:flex; align-items:center; margin-right:15px;">
+        <input type="text" id="catalog-search" placeholder="Search catalog..." />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.5"
+          style="position:absolute; left:12px; pointer-events:none;">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <button id="search-clear" title="Clear search">✕</button>
+      </div>
+      <div class="nav-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Loading…</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page-wrap">
+
+    <!-- ═══ Featured Panels Container (Spotlight, Trending, Top 10) ═══ -->
+    <div id="featured-panels">
+      
+      <!-- ═══ Automated Spotlight Slider ═══ -->
+      <div id="spotlight-slider-wrap" class="spotlight-slider-wrap">
+        <div class="skeleton skeleton-hero" id="spotlight-skeleton" style="width:100%; height:100%; border-radius:0;"></div>
+        <div id="spotlight-slides"></div>
+        <div class="slider-dots" id="slider-dots"></div>
+      </div>
+
+      <!-- ═══ Dynamic Trending Row ═══ -->
+      <section id="trending-section" style="margin-bottom: 40px;">
+        <div class="section-header" style="margin-bottom: 18px;">
+          <h2 class="section-title">Trending Now</h2>
+        </div>
+        <div class="trending-row-container">
+          <div class="trending-row" id="trending-row">
+            <!-- Skeleton items -->
+            <div class="skeleton skeleton-card" style="flex:0 0 170px; height:250px;"></div>
+            <div class="skeleton skeleton-card" style="flex:0 0 170px; height:250px;"></div>
+            <div class="skeleton skeleton-card" style="flex:0 0 170px; height:250px;"></div>
+            <div class="skeleton skeleton-card" style="flex:0 0 170px; height:250px;"></div>
+            <div class="skeleton skeleton-card" style="flex:0 0 170px; height:250px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ Ranked Top 10 Charts Section ═══ -->
+      <section id="top10-section" style="margin-bottom: 50px;">
+        <div class="section-header" style="margin-bottom: 18px;">
+          <h2 class="section-title">Top 10 Global</h2>
+        </div>
+        <div class="top10-grid" id="top10-grid">
+          <!-- Skeleton items -->
+          <div class="skeleton" style="height:102px; border-radius:12px; opacity:0.1; width:100%;"></div>
+          <div class="skeleton" style="height:102px; border-radius:12px; opacity:0.1; width:100%;"></div>
+          <div class="skeleton" style="height:102px; border-radius:12px; opacity:0.1; width:100%;"></div>
+          <div class="skeleton" style="height:102px; border-radius:12px; opacity:0.1; width:100%;"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ═══ Live Search Results Section (Hidden Initially) ═══ -->
+    <section id="search-results-section" style="display: none; margin-top: 20px; margin-bottom: 50px;">
+      <div class="section-header">
+        <h2 class="section-title">Search Results</h2>
+        <span class="section-more" id="search-results-count"></span>
+      </div>
+      <div class="card-grid" id="search-results-grid"></div>
+    </section>
+
+  </main>
+
+  <script>
+    // ── Register Client-Side Proxy Service Worker ──
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => {
+            console.log('[Service Worker] Registered successfully with scope:', reg.scope);
+          })
+          .catch(err => {
+            console.error('[Service Worker] Registration failed:', err);
+          });
+      });
+    }
+
+    const API = 'https://zyrox-backend.onrender.com/api';
+    const PROXY_BASE = 'https://zyrox-backend.onrender.com/proxy?url=';
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const featuredPanels = document.getElementById('featured-panels');
+    const searchSection = document.getElementById('search-results-section');
+
+    let spotlightList = [];
+    let currentSlideIdx = 0;
+    let spotlightInterval = null;
+
+    function setStatus(s, t) {
+      statusDot.className = 'status-dot ' + s;
+      statusText.textContent = t;
+    }
+
+    // Navigate to details page
+    function goDetails(id, animeTitle = 'Untitled', sourceSection = 'General') {
+      try {
+        if (typeof gtag === 'function') {
+          gtag('event', 'anime_discovery', {
+            anime_title: animeTitle,
+            source_section: sourceSection
+          });
+        }
+      } catch(e) {}
+      window.location.href = 'anime.html?id=' + encodeURIComponent(id);
+    }
+
+    // Navigate to theater
+    function goWatch(id, animeTitle = 'Untitled', sourceSection = 'General') {
+      try {
+        if (typeof gtag === 'function') {
+          gtag('event', 'anime_discovery', {
+            anime_title: animeTitle,
+            source_section: sourceSection
+          });
+        }
+      } catch(e) {}
+      window.location.href = 'theater.html?id=' + encodeURIComponent(id) + '&ep=1';
+    }
+
+    // Truncate text
+    function truncate(str, max) {
+      if (!str) return '';
+      return str.length > max ? str.substring(0, max) + '…' : str;
+    }
+
+    // Parse episodes array safely
+    function getEpisodesArray(anime) {
+      if (!anime) return [];
+      let eps = anime.s_m3u8_url;
+      if (!eps) return [];
+      if (Array.isArray(eps)) return eps;
+      if (typeof eps === 'string') {
+        try {
+          const parsed = JSON.parse(eps);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) { }
+      }
+      return [];
+    }
+
+    // Compute episode count dynamically to solve [object Object] rendering
+    function getEpisodeCount(anime) {
+      if (!anime) return 0;
+      const epsArr = getEpisodesArray(anime);
+      if (epsArr.length > 0) return epsArr.length;
+
+      if (anime.s_eps) {
+        if (Array.isArray(anime.s_eps)) return anime.s_eps.length;
+        if (typeof anime.s_eps === 'object' && anime.s_eps !== null) {
+          return Object.keys(anime.s_eps).length;
+        }
+        const parsedNum = parseInt(anime.s_eps, 10);
+        if (!isNaN(parsedNum)) return parsedNum;
+      }
+      return 0;
+    }
+
+    // ── Ambient Glow Sampling ────────────────────────────────────────────────
+    function applyAmbientGlow(proxied) {
+      if (!proxied) return;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          const ctx = c.getContext('2d');
+          c.width = 64; c.height = 64;
+          ctx.drawImage(img, 0, 0, 64, 64);
+          const d = ctx.getImageData(0, 0, 64, 64).data;
+          let rS = 0, gS = 0, bS = 0, n = 0;
+          for (let i = 0; i < d.length; i += 64) {
+            const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            if (lum > 30 && lum < 220) { rS += d[i]; gS += d[i + 1]; bS += d[i + 2]; n++; }
+          }
+          if (n) document.documentElement.style.setProperty('--ambient-color',
+            `rgba(${Math.round(rS / n)},${Math.round(gS / n)},${Math.round(bS / n)},0.1)`);
+        } catch (e) { }
+      };
+      img.src = proxied;
+    }
+
+    // ── Spotlight Slider Carousel ─────────────────────────────────────────────
+    function buildSpotlightSlider(list) {
+      spotlightList = list;
+      const slidesContainer = document.getElementById('spotlight-slides');
+      const dotsContainer = document.getElementById('slider-dots');
+      
+      slidesContainer.innerHTML = '';
+      dotsContainer.innerHTML = '';
+
+      if (!list || list.length === 0) {
+        document.getElementById('spotlight-skeleton').style.display = 'block';
+        return;
+      }
+      document.getElementById('spotlight-skeleton').style.display = 'none';
+
+      list.forEach((anime, idx) => {
+        const posterUrl = anime.poster || '';
+        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const epCount = getEpisodeCount(anime);
+
+        const slide = document.createElement('div');
+        slide.className = `spotlight-slide ${idx === 0 ? 'active' : ''}`;
+        slide.id = `spotlight-slide-${idx}`;
+
+        slide.innerHTML = `
+          <div class="spotlight-bg" style="background-image:url('${proxied}')"></div>
+          <div class="spotlight-overlay"></div>
+          <div class="spotlight-content">
+            <span class="spotlight-badge">★ Spotlight</span>
+            <div class="spotlight-meta">
+              ${anime.type ? `<span class="spotlight-meta-tag">${anime.type}</span>` : ''}
+              ${epCount ? `<span class="spotlight-meta-tag">${epCount} Episodes</span>` : ''}
+              ${anime.status ? `<span class="spotlight-meta-tag">${anime.status}</span>` : ''}
+            </div>
+            <h1 class="spotlight-title">${anime.title || 'Untitled'}</h1>
+            <p class="spotlight-desc">${truncate(anime.description, 180)}</p>
+            <div class="spotlight-actions">
+              <button class="spotlight-btn primary" id="spotlight-watch-${idx}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Watch Now
+              </button>
+              <button class="spotlight-btn secondary" id="spotlight-details-${idx}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Details
+              </button>
+            </div>
+          </div>
+        `;
+
+        slidesContainer.appendChild(slide);
+
+        // Click handler for banner itself
+        slide.onclick = (e) => {
+          if (!e.target.closest('.spotlight-btn')) {
+            goDetails(anime.id, anime.title || 'Untitled', 'Spotlight');
+          }
+        };
+
+        // Dots navigation
+        const dot = document.createElement('div');
+        dot.className = `slider-dot ${idx === 0 ? 'active' : ''}`;
+        dot.onclick = () => {
+          clearInterval(spotlightInterval);
+          goToSlide(idx);
+          startSpotlightTimer();
+        };
+        dotsContainer.appendChild(dot);
+      });
+
+      // Programmatic listeners to comply with CSP
+      list.forEach((anime, idx) => {
+        document.getElementById(`spotlight-watch-${idx}`).onclick = (e) => {
+          e.stopPropagation();
+          goWatch(anime.id, anime.title || 'Untitled', 'Spotlight');
+        };
+        document.getElementById(`spotlight-details-${idx}`).onclick = (e) => {
+          e.stopPropagation();
+          goDetails(anime.id, anime.title || 'Untitled', 'Spotlight');
+        };
+      });
+
+      currentSlideIdx = 0;
+      startSpotlightTimer();
+      
+      // Load initial slide's ambient color
+      if (list[0]) {
+        const initialPoster = list[0].poster || '';
+        const initialProxied = initialPoster ? PROXY_BASE + encodeURIComponent(initialPoster) : '';
+        applyAmbientGlow(initialProxied);
+      }
+    }
+
+    function goToSlide(idx) {
+      if (spotlightList.length === 0) return;
+      const slides = document.querySelectorAll('.spotlight-slide');
+      const dots = document.querySelectorAll('.slider-dot');
+
+      slides.forEach(s => s.classList.remove('active'));
+      dots.forEach(d => d.classList.remove('active'));
+
+      currentSlideIdx = idx;
+      if (slides[idx]) slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+
+      const anime = spotlightList[idx];
+      const posterUrl = anime.poster || '';
+      const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+      if (proxied) {
+        applyAmbientGlow(proxied);
+      }
+    }
+
+    function startSpotlightTimer() {
+      if (spotlightInterval) clearInterval(spotlightInterval);
+      spotlightInterval = setInterval(() => {
+        if (spotlightList.length === 0) return;
+        let nextIdx = (currentSlideIdx + 1) % spotlightList.length;
+        goToSlide(nextIdx);
+      }, 5000);
+    }
+
+    // ── Build Trending Row Shelf ──────────────────────────────────────────────
+    function buildTrendingRow(animeList) {
+      const container = document.getElementById('trending-row');
+      container.innerHTML = '';
+
+      if (!animeList || animeList.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding: 20px;">No trending items.</div>
+        `;
+        return;
+      }
+
+      animeList.forEach((anime, idx) => {
+        const posterUrl = anime.poster || '';
+        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const epCount = getEpisodeCount(anime);
+
+        // Fetch watch history for badge overlay
+        let continueBadge = '';
+        try {
+          const historyMap = JSON.parse(localStorage.getItem('zyrox_watch_history') || '{}');
+          const savedData = historyMap[anime.id];
+          if (savedData && savedData.current_episode_number) {
+            continueBadge = `<span class="continue-watching-badge">Continue: Ep ${savedData.current_episode_number}</span>`;
+          }
+        } catch(e) {}
+
+        const card = document.createElement('div');
+        card.className = 'trending-card';
+        card.id = `trending-card-${idx}`;
+
+        card.innerHTML = `
+          ${proxied
+            ? `<img class="trending-poster" src="${proxied}" alt="${anime.title || ''}" loading="lazy" onerror="this.style.display='none'" />`
+            : `<div class="trending-poster" style="background:var(--bg-elevated)"></div>`
+          }
+          ${continueBadge ? continueBadge : (epCount ? `<span class="trending-badge">${epCount} Ep</span>` : '')}
+          <div class="trending-overlay">
+            <div class="trending-title">${anime.title || 'Untitled'}</div>
+            <div class="trending-meta">${anime.type || 'TV'} · ${anime.status || 'Unknown'}</div>
+          </div>
+        `;
+
+        container.appendChild(card);
+
+        // Safe programmatic click listener mapping slug correctly
+        card.onclick = () => goDetails(anime.id, anime.title || 'Untitled', 'Trending');
+      });
+    }
+
+    // ── Build Top 10 Global Grid ──────────────────────────────────────────────
+    function buildTop10Grid(animeList) {
+      const container = document.getElementById('top10-grid');
+      container.innerHTML = '';
+
+      if (!animeList || animeList.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1/-1; padding: 20px;">No charts available.</div>
+        `;
+        return;
+      }
+
+      const top10 = animeList.slice(0, 10);
+
+      top10.forEach((anime, idx) => {
+        const posterUrl = anime.poster || '';
+        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const epCount = getEpisodeCount(anime);
+        const rank = idx + 1;
+
+        // Fetch watch history for tag overlay
+        let savedData = null;
+        try {
+          const historyMap = JSON.parse(localStorage.getItem('zyrox_watch_history') || '{}');
+          savedData = historyMap[anime.id];
+        } catch(e) {}
+
+        const item = document.createElement('div');
+        item.className = 'top10-item fade-in';
+        item.style.animationDelay = `${idx * 40}ms`;
+        item.id = `top10-item-${idx}`;
+
+        item.innerHTML = `
+          <span class="top10-rank">${rank}</span>
+          <div class="top10-poster-wrap">
+            ${proxied
+              ? `<img class="top10-poster" src="${proxied}" alt="${anime.title || ''}" loading="lazy" />`
+              : `<div class="top10-poster" style="background:var(--bg-elevated)"></div>`
+            }
+          </div>
+          <div class="top10-details">
+            <h3 class="top10-title">${anime.title || 'Untitled'}</h3>
+            <div class="top10-meta">
+              <span class="top10-tag">${anime.type || 'TV'}</span>
+              ${savedData && savedData.current_episode_number 
+                ? `<span class="top10-tag continue-watching-tag">Continue: Ep ${savedData.current_episode_number}</span>`
+                : (epCount ? `<span class="top10-tag">${epCount} Eps</span>` : '')
+              }
+              <span class="top10-tag" style="color:var(--accent-bright)">★ Rank #${rank}</span>
+            </div>
+          </div>
+          <div class="top10-chevron">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </div>
+        `;
+
+        container.appendChild(item);
+
+        // Safe programmatic click listener
+        item.onclick = () => goDetails(anime.id, anime.title || 'Untitled', 'Top10');
+      });
+    }
+
+    // ── Build Search Results Grid ──────────────────────────────────────────────
+    function buildSearchResultsGrid(animeList) {
+      const grid = document.getElementById('search-results-grid');
+      const countLabel = document.getElementById('search-results-count');
+      grid.innerHTML = '';
+      countLabel.textContent = `${animeList.length} matches`;
+
+      if (animeList.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1/-1; padding: 40px; text-align: center;">
+            <div class="icon" style="font-size: 2.5rem; margin-bottom: 12px;">📭</div>
+            <div class="message">No anime found matching your query.</div>
+          </div>
+        `;
+        return;
+      }
+
+      animeList.forEach((anime, idx) => {
+        const posterUrl = anime.poster || '';
+        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const epCount = getEpisodeCount(anime);
+
+        // Fetch watch history for badge overlay
+        let continueBadge = '';
+        try {
+          const historyMap = JSON.parse(localStorage.getItem('zyrox_watch_history') || '{}');
+          const savedData = historyMap[anime.id];
+          if (savedData && savedData.current_episode_number) {
+            continueBadge = `<span class="continue-watching-badge">Continue: Ep ${savedData.current_episode_number}</span>`;
+          }
+        } catch(e) {}
+
+        const card = document.createElement('div');
+        card.className = 'anime-card fade-in';
+        card.style.animationDelay = `${Math.min(idx * 40, 800)}ms`;
+        card.onclick = () => goDetails(anime.id, anime.title || 'Untitled', 'Search');
+
+        card.innerHTML = `
+          ${proxied
+            ? `<img class="card-poster" src="${proxied}" alt="${anime.title || ''}" loading="lazy" onerror="this.style.display='none'" />`
+            : `<div class="card-poster" style="background:var(--bg-elevated)"></div>`
+          }
+          ${continueBadge ? continueBadge : (epCount ? `<span class="card-ep-badge">${epCount} Episodes</span>` : '')}
+          <div class="card-play-icon">
+            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div class="card-overlay">
+            <div class="card-title">${anime.title || 'Untitled'}</div>
+            <div class="card-meta">${[anime.type, anime.status].filter(Boolean).join(' · ')}</div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    // ── Real-Time Search Filter ────────────────────────────────────────────────
+    const searchInput = document.getElementById('catalog-search');
+    const searchClear = document.getElementById('search-clear');
+    let searchTimeout = null;
+
+    searchInput.addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+
+      if (q) {
+        searchClear.style.display = 'block';
+      } else {
+        searchClear.style.display = 'none';
+      }
+
+      if (!q) {
+        searchSection.style.display = 'none';
+        featuredPanels.style.display = 'block';
+        return;
+      }
+
+      featuredPanels.style.display = 'none';
+      searchSection.style.display = 'block';
+
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        try {
+          const resp = await fetch(`${API}/search?q=${encodeURIComponent(q)}`);
+          if (!resp.ok) throw new Error('Search failed');
+          const results = await resp.json();
+          buildSearchResultsGrid(results);
+        } catch (err) {
+          console.error('[Search] Error:', err);
+        }
+      }, 250);
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.style.display = 'none';
+      searchSection.style.display = 'none';
+      featuredPanels.style.display = 'block';
+      searchInput.focus();
+    });
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    async function init() {
+      try {
+        // 1. Fetch Spotlight
+        fetch(`${API}/trending/spotlight`)
+          .then(resp => {
+            if (!resp.ok) throw new Error('Spotlight failed');
+            return resp.json();
+          })
+          .then(data => {
+            buildSpotlightSlider(data);
+          })
+          .catch(err => {
+            console.error('[Init] Spotlight error:', err);
+            document.getElementById('spotlight-skeleton').style.display = 'none';
+            document.getElementById('spotlight-slides').innerHTML = `
+              <div class="empty-state" style="padding:40px;">Failed to load Spotlight slider.</div>
+            `;
+          });
+
+        // 2. Fetch Trending
+        fetch(`${API}/trending/now`)
+          .then(resp => {
+            if (!resp.ok) throw new Error('Trending failed');
+            return resp.json();
+          })
+          .then(data => {
+            buildTrendingRow(data);
+          })
+          .catch(err => {
+            console.error('[Init] Trending error:', err);
+            document.getElementById('trending-row').innerHTML = `
+              <div class="empty-state" style="padding:20px;">Failed to load Trending shelf.</div>
+            `;
+          });
+
+        // 3. Fetch Top 10
+        fetch(`${API}/trending/top10`)
+          .then(resp => {
+            if (!resp.ok) throw new Error('Top 10 failed');
+            return resp.json();
+          })
+          .then(data => {
+            buildTop10Grid(data);
+            setStatus('live', `${data.length} charts`);
+          })
+          .catch(err => {
+            console.error('[Init] Top 10 error:', err);
+            document.getElementById('top10-grid').innerHTML = `
+              <div class="empty-state" style="grid-column:1/-1; padding:20px;">Failed to load Top 10 charts.</div>
+            `;
+            setStatus('error', 'Charts failed');
+          });
+
+      } catch (err) {
+        console.error('[Home] Global Init error:', err);
+        setStatus('error', 'Load failed');
+      }
+    }
+
+    init();
+  </script>
+
+</body>
+
+</html>

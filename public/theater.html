@@ -1532,7 +1532,7 @@
           recommendationsGrid.innerHTML = '';
           list.forEach((anime, idx) => {
             const posterUrl = anime.poster || '';
-            const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+            const proxied = posterUrl || '';
             const epCount = getEpisodeCount(anime);
 
             const card = document.createElement('div');

@@ -115,10 +115,34 @@ app.get('/health', (_req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/proxy', proxyLimiter, async (req, res) => {
-  return res.status(403).json({
-    error: 'Server-side media proxy is disabled',
-    message: 'All streaming video and subtitle proxying has been migrated to client-side Service Worker proxy (sw.js) to achieve zero bandwidth scaling.'
-  });
+  const targetUrl = req.query.url;
+  if (!targetUrl) return res.status(400).send('Missing URL');
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        'Referer': 'https://vibeplayer.site/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!response.ok) return res.status(response.status).send('Upstream Error');
+
+    // Set CORS headers so the browser allows the Service Worker to read this data
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
+
+    const data = await response.text();
+    return res.send(data);
+  } catch (err) {
+    return res.status(500).send('Proxy Error');
+  }
+});
+
+// Alias for Vercel pathing
+app.get('/api/proxy', proxyLimiter, (req, res) => {
+  const targetUrl = req.query.url;
+  res.redirect(`/proxy?url=${encodeURIComponent(targetUrl)}`);
 });
 
 

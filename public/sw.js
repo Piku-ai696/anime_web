@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ZyroX — Transparent Redirector Service Worker
+// ZyroX — Direct Header Injection Service Worker
 // ═══════════════════════════════════════════════════════════════════════════════
 
 self.addEventListener('install', (event) => {
@@ -13,19 +13,42 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  const isManifest = url.pathname.includes('.m3u8');
-  const isSubtitle = url.pathname.includes('.vtt');
+  if (event.request.url.includes('vibeplayer.site')) {
+    const isManifest = event.request.url.includes('.m3u8');
+    
+    const headers = new Headers(event.request.headers);
+    headers.set('Referer', 'https://vibeplayer.site/');
+    headers.set('Origin', 'https://vibeplayer.site');
 
-  if (isManifest || isSubtitle) {
-    // Prevent double proxy loop
-    if (url.pathname.includes('/api/proxy') || url.pathname.includes('/proxy')) {
-      return;
-    }
+    const fetchOptions = {
+      method: event.request.method,
+      headers: headers,
+      mode: isManifest ? 'cors' : 'no-cors'
+    };
 
-    const targetUrl = event.request.url;
-    const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(targetUrl);
+    const modifiedRequest = new Request(event.request.url, fetchOptions);
     event.respondWith(
-      fetch(proxiedUrl)
+      fetch(modifiedRequest).then(res => {
+        if (res.type === 'opaque') {
+          return res;
+        }
+
+        const responseHeaders = new Headers(res.headers);
+        responseHeaders.set('Access-Control-Allow-Origin', '*');
+        responseHeaders.set(
+          'Content-Type',
+          isManifest ? 'application/vnd.apple.mpegurl' : 'video/mp2t'
+        );
+
+        return new Response(res.body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: responseHeaders
+        });
+      }).catch(err => {
+        console.error('[SW Injection] Intercepted fetch failed:', err);
+        return new Response('', { status: 200 });
+      })
     );
   }
 });

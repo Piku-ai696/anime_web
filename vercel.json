@@ -1,7 +1,10 @@
+
 {
   "version": 2,
-  "routes": [
-    { "src": "/api/(.*)", "dest": "api/proxy.js" },
-    { "src": "/(.*)", "dest": "public/$1" }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/proxy.js" },
+    { "source": "/proxy", "destination": "/api/proxy.js" },
+    { "source": "/theater", "destination": "/theater.html" },
+    { "source": "/anime", "destination": "/anime.html" }
   ]
 }

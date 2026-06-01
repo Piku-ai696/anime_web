@@ -863,7 +863,6 @@
       if (!posterUrl) return;
 
       const img = new Image();
-      img.crossOrigin = 'anonymous';
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -902,7 +901,8 @@
         console.warn('[Ambient] Failed to load poster for glow sampling');
       };
 
-      // Load the raw poster URL directly from the CDN for CORS-safe ambient glow sampling
+      // Set anonymous CORS policy immediately before setting src to ensure browser security models pass
+      img.crossOrigin = 'anonymous';
       img.src = posterUrl;
     }
 

@@ -99,7 +99,7 @@ const apiLimiter = rateLimit({
 app.use(express.json());
 
 // ── Serve Static Frontend ─────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '../public')));
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {

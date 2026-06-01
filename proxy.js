@@ -43,7 +43,8 @@ async function supabaseFetch(path, env) {
     },
   });
   if (!res.ok) {
-    throw new Error(`Supabase query failed: ${res.statusText}`);
+    const errorText = await res.text();
+    throw new Error(`Supabase API responded with status ${res.status}: ${errorText}`);
   }
   return await res.json();
 }
@@ -242,7 +243,12 @@ export default {
 
         return jsonResponse(mapped);
       } catch (err) {
-        return jsonResponse({ error: 'Failed to load spotlight', message: err.message }, 500);
+        return jsonResponse({ 
+          error: true, 
+          endpoint: "spotlight", 
+          details: err.message, 
+          stack: err.stack 
+        }, 500);
       }
     }
 
@@ -265,7 +271,12 @@ export default {
 
         return jsonResponse(mapped);
       } catch (err) {
-        return jsonResponse({ error: 'Failed to load trending now', message: err.message }, 500);
+        return jsonResponse({ 
+          error: true, 
+          endpoint: "trending", 
+          details: err.message, 
+          stack: err.stack 
+        }, 500);
       }
     }
 
@@ -288,7 +299,12 @@ export default {
 
         return jsonResponse(mapped);
       } catch (err) {
-        return jsonResponse({ error: 'Failed to load top 10', message: err.message }, 500);
+        return jsonResponse({ 
+          error: true, 
+          endpoint: "top10", 
+          details: err.message, 
+          stack: err.stack 
+        }, 500);
       }
     }
 

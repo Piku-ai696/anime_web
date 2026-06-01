@@ -26,6 +26,7 @@ self.addEventListener('fetch', (event) => {
     // Build the request headers bypassing origin security
     const headers = new Headers();
     headers.set('Referer', 'https://vibeplayer.site/');
+    headers.set('Origin', 'https://vibeplayer.site');
     headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
     // Include downstream range headers if present in VideoJS requests
@@ -39,6 +40,8 @@ self.addEventListener('fetch', (event) => {
       headers: headers,
       mode: 'cors',
       credentials: 'omit',
+      referrer: 'https://vibeplayer.site/',
+      referrerPolicy: 'unsafe-url',
       redirect: 'follow'
     });
 

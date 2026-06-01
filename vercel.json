@@ -1,6 +1,8 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/api/proxy", "destination": "/api/proxy.js" },
+    { "source": "/api/next-episode", "destination": "/api/proxy.js" },
     { "source": "/api/:path*", "destination": "/api/proxy.js" },
     { "source": "/proxy", "destination": "/api/proxy.js" },
     { "source": "/theater", "destination": "/theater.html" },

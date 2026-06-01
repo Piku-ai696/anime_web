@@ -199,7 +199,7 @@ app.get('/proxy', proxyLimiter, async (req, res) => {
 
     if (isSubtitle) {
       const body = await upstream.text();
-      res.set('Content-Type', 'text/vtt; charset=utf-8');
+      res.set('Content-Type', 'text/vtt');
       return res.send(body);
     }
 

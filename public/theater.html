@@ -1120,9 +1120,8 @@
         });
       }
 
-      // Update player source via server-side negotiator proxy
-      const finalUrl = '/api/proxy?url=' + encodeURIComponent(url);
-      player.src({ src: finalUrl, type: 'application/x-mpegURL' });
+      // Update player source via raw HLS stream URL (handled transparently by Service Worker)
+      player.src({ src: url, type: 'application/x-mpegURL' });
       player.play().catch(() => {}); // Autoplay may be blocked
 
       // Update Now Playing bar

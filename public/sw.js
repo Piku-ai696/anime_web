@@ -54,12 +54,16 @@ self.addEventListener('fetch', (event) => {
                 .map(line => {
                   const trimmed = line.trim();
 
-                  // Programmatically force-inject codec strings into EXT-X-STREAM-INF lines to prevent track exclusion
-                  if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS=')) {
-                    return trimmed.replace(
-                      '#EXT-X-STREAM-INF:',
-                      '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
-                    );
+                  // Programmatically force-inject or standardize codec strings into EXT-X-STREAM-INF lines to prevent track exclusion
+                  if (isMaster && trimmed.includes('#EXT-X-STREAM-INF')) {
+                    if (trimmed.includes('CODECS=')) {
+                      return trimmed.replace(/CODECS="[^"]*"/g, 'CODECS="avc1.64001f,mp4a.40.2"');
+                    } else {
+                      return trimmed.replace(
+                        '#EXT-X-STREAM-INF:',
+                        '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
+                      );
+                    }
                   }
 
                   // Skip comments and descriptors
@@ -82,7 +86,7 @@ self.addEventListener('fetch', (event) => {
                 status: response.status,
                 statusText: response.statusText,
                 headers: {
-                  'Content-Type': 'application/vnd.apple.mpegurl',
+                  'Content-Type': 'application/x-mpegURL',
                   'X-Content-Type-Options': 'nosniff',
                   'Access-Control-Allow-Origin': '*',
                   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',

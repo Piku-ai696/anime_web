@@ -369,7 +369,7 @@
         document.getElementById('info-status').textContent = anime.status || 'Unknown';
 
         const posterUrl = anime.poster || '';
-        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const proxied = posterUrl || '';
         if (proxied) {
           document.getElementById('info-poster').src = proxied;
           document.getElementById('info-poster').alt = anime.title || '';
@@ -437,7 +437,7 @@
           recommendationsGrid.innerHTML = '';
           list.forEach((anime, idx) => {
             const posterUrl = anime.poster || '';
-            const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+            const proxied = posterUrl || '';
             const epCount = getEpisodeCount(anime);
 
             const card = document.createElement('div');

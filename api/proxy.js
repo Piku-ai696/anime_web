@@ -114,35 +114,85 @@ app.get('/health', (_req, res) => {
 // Rewrites relative URLs in .m3u8 manifests to route through this proxy.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/proxy', proxyLimiter, async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl) return res.status(400).send('Missing URL');
+app.get(['/proxy', '/api/proxy'], proxyLimiter, async (req, res) => {
+  const targetUrlStr = req.query.url;
+  if (!targetUrlStr) {
+    return res.status(400).json({ error: 'Missing target URL parameter' });
+  }
+
+  const isManifest = targetUrlStr.endsWith('.m3u8') || targetUrlStr.includes('.m3u8');
+  const isVtt = targetUrlStr.endsWith('.vtt') || targetUrlStr.includes('.vtt') || targetUrlStr.endsWith('.srt') || targetUrlStr.includes('.srt');
+
+  if (!isManifest && !isVtt) {
+    return res.status(403).json({
+      error: 'Access Forbidden',
+      message: 'Server-side media proxy is limited strictly to lightweight text manifests and subtitle tracks to minimize server load. Video segments (.ts) must load client-side.'
+    });
+  }
 
   try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'Referer': 'https://vibeplayer.site/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    const headers = {
+      'Referer': 'https://vibeplayer.site/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
 
-    if (!response.ok) return res.status(response.status).send('Upstream Error');
+    const response = await fetch(targetUrlStr, { headers });
+    if (!response.ok) {
+      return res.status(response.status).send(`Upstream returned error: ${response.status}`);
+    }
 
-    // Set CORS headers so the browser allows the Service Worker to read this data
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
 
-    const data = await response.text();
-    return res.send(data);
+    if (isManifest) {
+      const body = await response.text();
+      const baseUrl = targetUrlStr.substring(0, targetUrlStr.lastIndexOf('/') + 1);
+      const isMaster = body.includes('#EXT-X-STREAM-INF');
+
+      const rewritten = body
+        .split('\n')
+        .map(line => {
+          const trimmed = line.trim();
+
+          // Inject CODECS into master manifest for Video.js VHS detection
+          if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
+            return trimmed.replace(
+              '#EXT-X-STREAM-INF:',
+              '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
+            );
+          }
+
+          // Skip comments and descriptors
+          if (!trimmed || trimmed.startsWith('#')) {
+            return line;
+          }
+
+          const isLineManifest = trimmed.endsWith('.m3u8') || trimmed.includes('.m3u8');
+
+          // Absolute URLs: only proxy other manifests (.m3u8), stream .ts directly from CDN
+          if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            return isLineManifest ? `/api/proxy?url=${encodeURIComponent(trimmed)}` : trimmed;
+          }
+
+          // Relative URLs
+          const absoluteUrl = new URL(trimmed, baseUrl).href;
+          return isLineManifest ? `/api/proxy?url=${encodeURIComponent(absoluteUrl)}` : absoluteUrl;
+        })
+        .join('\n');
+
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      return res.send(rewritten);
+    } else {
+      // Subtitle VTT / SRT files
+      const body = await response.text();
+      res.setHeader('Content-Type', 'text/vtt');
+      return res.send(body);
+    }
   } catch (err) {
-    return res.status(500).send('Proxy Error');
+    console.error('[Proxy] Fetch failed:', err.message);
+    return res.status(500).json({ error: 'Proxy fetch failed', details: err.message });
   }
-});
-
-// Alias for Vercel pathing
-app.get('/api/proxy', proxyLimiter, (req, res) => {
-  const targetUrl = req.query.url;
-  res.redirect(`/proxy?url=${encodeURIComponent(targetUrl)}`);
 });
 
 
@@ -465,77 +515,3 @@ app.get('/api/trending/top10', apiLimiter, async (_req, res) => {
       .order('T10', { ascending: true });
 
     if (trendErr) throw trendErr;
-    if (!trendData || trendData.length === 0) return res.json([]);
-
-    const ids = trendData.map(item => item.id);
-    const { data: animeData, error: animeErr } = await supabase
-      .from('anime_list')
-      .select('id, title, description, poster, s_eps, s_m3u8_url, d_m3u8_url')
-      .in('id', ids);
-
-    if (animeErr) throw animeErr;
-
-    const mapped = trendData.map(t => {
-      const anime = animeData.find(a => a.id === t.id);
-      return anime ? { ...anime, T10: t.T10 } : null;
-    }).filter(Boolean);
-
-    return res.json(mapped);
-  } catch (err) {
-    console.error('[API] Top 10 error:', err.message);
-    res.status(500).json({ error: 'Failed to load top 10' });
-  }
-});
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// API: /api/catalog — List all anime for Homepage
-// ═══════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/catalog', apiLimiter, async (_req, res) => {
-  try {
-    let data = null;
-    try {
-      const { data: dbData, error } = await supabase
-        .from('anime_list')
-        .select('id, title, poster, s_eps, s_m3u8_url, d_m3u8_url, description')
-        .order('title', { ascending: true });
-
-      if (!error && dbData && dbData.length > 0) {
-        data = dbData;
-      }
-    } catch (err) {
-      console.warn(`[Supabase] Catalog fetch failed:`, err.message);
-    }
-
-    return res.json(data || []);
-  } catch (err) {
-    console.error('[API] ✗ Catalog error:', err.message);
-    res.status(500).json({ error: 'Failed to load catalog' });
-  }
-});
-
-// ── Details Page Route ────────────────────────────────────────────────────────
-// Change these to point to the correct folder
-app.get('/anime', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../public/anime.html'));
-});
-app.get('/theater', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../public/theater.html'));
-});
-
-// ── Theater Page Route ────────────────────────────────────────────────────────
-app.get('/theater', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
-});
-app.get('/theater.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'theater'));
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// START SERVER
-// ═══════════════════════════════════════════════════════════════════════════════
-
-module.exports = app;
-
-

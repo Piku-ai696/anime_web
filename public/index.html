@@ -625,7 +625,7 @@
 
       list.forEach((anime, idx) => {
         const posterUrl = anime.poster || '';
-        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const proxied = posterUrl || '';
         const epCount = getEpisodeCount(anime);
 
         const slide = document.createElement('div');
@@ -695,7 +695,7 @@
       // Load initial slide's ambient color
       if (list[0]) {
         const initialPoster = list[0].poster || '';
-        const initialProxied = initialPoster ? PROXY_BASE + encodeURIComponent(initialPoster) : '';
+        const initialProxied = initialPoster || '';
         applyAmbientGlow(initialProxied);
       }
     }
@@ -714,7 +714,7 @@
 
       const anime = spotlightList[idx];
       const posterUrl = anime.poster || '';
-      const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+      const proxied = posterUrl || '';
       if (proxied) {
         applyAmbientGlow(proxied);
       }
@@ -743,7 +743,7 @@
 
       animeList.forEach((anime, idx) => {
         const posterUrl = anime.poster || '';
-        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const proxied = posterUrl || '';
         const epCount = getEpisodeCount(anime);
 
         // Fetch watch history for badge overlay
@@ -795,7 +795,7 @@
 
       top10.forEach((anime, idx) => {
         const posterUrl = anime.poster || '';
-        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const proxied = posterUrl || '';
         const epCount = getEpisodeCount(anime);
         const rank = idx + 1;
 
@@ -863,7 +863,7 @@
 
       animeList.forEach((anime, idx) => {
         const posterUrl = anime.poster || '';
-        const proxied = posterUrl ? PROXY_BASE + encodeURIComponent(posterUrl) : '';
+        const proxied = posterUrl || '';
         const epCount = getEpisodeCount(anime);
 
         // Fetch watch history for badge overlay

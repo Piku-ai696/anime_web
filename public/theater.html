@@ -910,8 +910,6 @@
           document.documentElement.style.setProperty('--ambient-color', fallbackColor);
         };
 
-        // Set anonymous CORS policy immediately before setting src to ensure browser security models pass
-        img.crossOrigin = 'anonymous';
         img.src = posterUrl;
       } catch (err) {
         console.warn('[Ambient] Setup exception caught, falling back to static default:', err.message);

@@ -1069,7 +1069,7 @@
       // Load native VTT track inside the player via proxy to bypass CORS
       if (subUrl) {
         console.log('[Subtitle] Extracting and loading subtitle track:', subUrl);
-        const proxiedSubUrl = '/client-proxy?url=' + encodeURIComponent(subUrl);
+        const proxiedSubUrl = '/api/proxy?url=' + encodeURIComponent(subUrl);
 
         // Append native HTML5 track element directly to the video element for fallback
         if (videoEl) {
@@ -1108,8 +1108,8 @@
         });
       }
 
-      // Update player source via client-side proxy Service Worker
-      const proxiedUrl = '/client-proxy?url=' + encodeURIComponent(url);
+      // Update player source via dynamic Server/Vercel proxy
+      const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(url);
       player.src({ src: proxiedUrl, type: 'application/x-mpegURL' });
       player.play().catch(() => {}); // Autoplay may be blocked
 

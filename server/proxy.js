@@ -189,6 +189,9 @@ app.get('/proxy', proxyLimiter, async (req, res) => {
         })
         .join('\n');
 
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
       res.set('Content-Type', 'application/vnd.apple.mpegurl');
       return res.send(rewritten);
     }
@@ -199,6 +202,9 @@ app.get('/proxy', proxyLimiter, async (req, res) => {
 
     if (isSubtitle) {
       const body = await upstream.text();
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
       res.set('Content-Type', 'text/vtt');
       return res.send(body);
     }
@@ -220,6 +226,9 @@ app.get('/proxy', proxyLimiter, async (req, res) => {
       }
     }
 
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
     res.set('Content-Type', 'video/mp2t');
     res.send(buffer);
 

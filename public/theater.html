@@ -860,50 +860,63 @@
     }
 
     function setNebulaAmbientAura(posterUrl) {
-      if (!posterUrl) return;
+      const fallbackColor = 'rgba(139, 92, 246, 0.12)';
+      if (!posterUrl) {
+        document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+        return;
+      }
 
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx    = canvas.getContext('2d');
-          canvas.width  = 64;
-          canvas.height = 64;
-          ctx.drawImage(img, 0, 0, 64, 64);
+      try {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx    = canvas.getContext('2d');
+            canvas.width  = 64;
+            canvas.height = 64;
+            ctx.drawImage(img, 0, 0, 64, 64);
 
-          const data   = ctx.getImageData(0, 0, 64, 64).data;
-          let rSum = 0, gSum = 0, bSum = 0, count = 0;
+            const data   = ctx.getImageData(0, 0, 64, 64).data;
+            let rSum = 0, gSum = 0, bSum = 0, count = 0;
 
-          // Sample every 16th pixel for speed
-          for (let i = 0; i < data.length; i += 64) {
-            const r = data[i], g = data[i+1], b = data[i+2];
-            // Skip very dark and very bright pixels
-            const lum = (r + g + b) / 3;
-            if (lum > 30 && lum < 220) {
-              rSum += r; gSum += g; bSum += b; count++;
+            // Sample every 16th pixel for speed
+            for (let i = 0; i < data.length; i += 64) {
+              const r = data[i], g = data[i+1], b = data[i+2];
+              // Skip very dark and very bright pixels
+              const lum = (r + g + b) / 3;
+              if (lum > 30 && lum < 220) {
+                rSum += r; gSum += g; bSum += b; count++;
+              }
             }
+
+            if (count > 0) {
+              const avgR = Math.round(rSum / count);
+              const avgG = Math.round(gSum / count);
+              const avgB = Math.round(bSum / count);
+              const ambientColor = `rgba(${avgR}, ${avgG}, ${avgB}, 0.12)`;
+              document.documentElement.style.setProperty('--ambient-color', ambientColor);
+            } else {
+              document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+            }
+          } catch (e) {
+            // Tainted canvas or canvas extraction error
+            console.warn('[Ambient] Canvas drawing error or tainted canvas, falling back to static aura.');
+            document.documentElement.style.setProperty('--ambient-color', fallbackColor);
           }
+        };
 
-          if (count > 0) {
-            const avgR = Math.round(rSum / count);
-            const avgG = Math.round(gSum / count);
-            const avgB = Math.round(bSum / count);
-            const ambientColor = `rgba(${avgR}, ${avgG}, ${avgB}, 0.12)`;
-            document.documentElement.style.setProperty('--ambient-color', ambientColor);
-          }
-        } catch (e) {
-          // CORS or canvas error — use default accent glow
-          console.warn('[Ambient] Canvas sampling failed, using default glow');
-        }
-      };
+        img.onerror = () => {
+          console.warn('[Ambient] Failed to load poster, using static default glow');
+          document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+        };
 
-      img.onerror = () => {
-        console.warn('[Ambient] Failed to load poster for glow sampling');
-      };
-
-      // Set anonymous CORS policy immediately before setting src to ensure browser security models pass
-      img.crossOrigin = 'anonymous';
-      img.src = posterUrl;
+        // Set anonymous CORS policy immediately before setting src to ensure browser security models pass
+        img.crossOrigin = 'anonymous';
+        img.src = posterUrl;
+      } catch (err) {
+        console.warn('[Ambient] Setup exception caught, falling back to static default:', err.message);
+        document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+      }
     }
 
 

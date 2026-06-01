@@ -408,7 +408,6 @@
             img.onerror = () => {
               document.documentElement.style.setProperty('--ambient-color', fallbackColor);
             };
-            img.crossOrigin = 'anonymous';
             img.src = proxied;
           } catch (e) {
             document.documentElement.style.setProperty('--ambient-color', fallbackColor);

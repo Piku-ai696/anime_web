@@ -1120,9 +1120,8 @@
         });
       }
 
-      // Update player source via Service Worker client proxy
-      const proxiedUrl = '/client-proxy?url=' + encodeURIComponent(url);
-      player.src({ src: proxiedUrl, type: 'application/x-mpegURL' });
+      // Update player source via transparent proxying of raw m3u8 URL
+      player.src({ src: url, type: 'application/x-mpegURL' });
       player.play().catch(() => {}); // Autoplay may be blocked
 
       // Update Now Playing bar

@@ -378,27 +378,43 @@
         // Action routing
         document.getElementById('btn-watch').href = `theater.html?id=${encodeURIComponent(animeId)}&ep=1`;
 
-        // Ambient glow sampling from poster
+        // Ambient glow sampling from poster with robust static fallback
+        const fallbackColor = 'rgba(139, 92, 246, 0.12)';
         if (proxied) {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            try {
-              const c = document.createElement('canvas');
-              const ctx = c.getContext('2d');
-              c.width = 64; c.height = 64;
-              ctx.drawImage(img, 0, 0, 64, 64);
-              const d = ctx.getImageData(0, 0, 64, 64).data;
-              let rS = 0, gS = 0, bS = 0, n = 0;
-              for (let i = 0; i < d.length; i += 64) {
-                const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
-                if (lum > 30 && lum < 220) { rS += d[i]; gS += d[i + 1]; bS += d[i + 2]; n++; }
+          try {
+            const img = new Image();
+            img.onload = () => {
+              try {
+                const c = document.createElement('canvas');
+                const ctx = c.getContext('2d');
+                c.width = 64; c.height = 64;
+                ctx.drawImage(img, 0, 0, 64, 64);
+                const d = ctx.getImageData(0, 0, 64, 64).data;
+                let rS = 0, gS = 0, bS = 0, n = 0;
+                for (let i = 0; i < d.length; i += 64) {
+                  const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                  if (lum > 30 && lum < 220) { rS += d[i]; gS += d[i + 1]; bS += d[i + 2]; n++; }
+                }
+                if (n) {
+                  document.documentElement.style.setProperty('--ambient-color',
+                    `rgba(${Math.round(rS / n)},${Math.round(gS / n)},${Math.round(bS / n)},0.12)`);
+                } else {
+                  document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+                }
+              } catch (e) {
+                document.documentElement.style.setProperty('--ambient-color', fallbackColor);
               }
-              if (n) document.documentElement.style.setProperty('--ambient-color',
-                `rgba(${Math.round(rS / n)},${Math.round(gS / n)},${Math.round(bS / n)},0.12)`);
-            } catch (e) { }
-          };
-          img.src = proxied;
+            };
+            img.onerror = () => {
+              document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+            };
+            img.crossOrigin = 'anonymous';
+            img.src = proxied;
+          } catch (e) {
+            document.documentElement.style.setProperty('--ambient-color', fallbackColor);
+          }
+        } else {
+          document.documentElement.style.setProperty('--ambient-color', fallbackColor);
         }
 
         // Load recommendations

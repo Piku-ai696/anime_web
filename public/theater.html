@@ -898,8 +898,8 @@
         console.warn('[Ambient] Failed to load poster for glow sampling');
       };
 
-      // Try proxying the poster for CORS
-      img.src = PROXY_BASE + encodeURIComponent(posterUrl);
+      // Load the poster URL directly from the CDN for CORS-safe ambient glow sampling
+      img.src = posterUrl;
     }
 
 

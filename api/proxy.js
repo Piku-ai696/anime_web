@@ -492,11 +492,12 @@ app.get('/api/catalog', apiLimiter, async (_req, res) => {
 });
 
 // ── Details Page Route ────────────────────────────────────────────────────────
+// Change these to point to the correct folder
 app.get('/anime', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
+  res.sendFile(path.join(__dirname, '../public/anime.html'));
 });
-app.get('/anime.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'anime'));
+app.get('/theater', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/theater.html'));
 });
 
 // ── Theater Page Route ────────────────────────────────────────────────────────

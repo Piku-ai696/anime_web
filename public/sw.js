@@ -54,8 +54,8 @@ self.addEventListener('fetch', (event) => {
                 .map(line => {
                   const trimmed = line.trim();
 
-                  // Inject CODECS into master manifest for Video.js VHS detection
-                  if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
+                  // Programmatically force-inject codec strings into EXT-X-STREAM-INF lines to prevent track exclusion
+                  if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS=')) {
                     return trimmed.replace(
                       '#EXT-X-STREAM-INF:',
                       '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
@@ -83,6 +83,7 @@ self.addEventListener('fetch', (event) => {
                 statusText: response.statusText,
                 headers: {
                   'Content-Type': 'application/vnd.apple.mpegurl',
+                  'X-Content-Type-Options': 'nosniff',
                   'Access-Control-Allow-Origin': '*',
                   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
                   'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept'

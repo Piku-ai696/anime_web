@@ -86,7 +86,7 @@ self.addEventListener('fetch', (event) => {
                 status: response.status,
                 statusText: response.statusText,
                 headers: {
-                  'Content-Type': 'application/x-mpegURL',
+                  'Content-Type': 'application/vnd.apple.mpegurl',
                   'X-Content-Type-Options': 'nosniff',
                   'Access-Control-Allow-Origin': '*',
                   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -195,6 +195,7 @@ async function handleSegmentResponse(response) {
 
   // Generate response with fully opened access headers
   const responseHeaders = new Headers(response.headers);
+  responseHeaders.set('Content-Type', 'video/mp2t');
   responseHeaders.set('Access-Control-Allow-Origin', '*');
   responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept, Range');

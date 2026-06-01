@@ -1120,8 +1120,8 @@
         });
       }
 
-      // Update player source via dynamic Server/Vercel proxy
-      const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(url);
+      // Update player source via Service Worker client proxy
+      const proxiedUrl = '/client-proxy?url=' + encodeURIComponent(url);
       player.src({ src: proxiedUrl, type: 'application/x-mpegURL' });
       player.play().catch(() => {}); // Autoplay may be blocked
 
@@ -1683,4 +1683,3 @@
 
 </body>
 </html>
-

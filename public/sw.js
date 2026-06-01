@@ -23,6 +23,17 @@ self.addEventListener('fetch', (event) => {
       return event.respondWith(new Response('Missing target URL parameter', { status: 400 }));
     }
 
+    // Determine target format and select router destination
+    const isManifestOrVtt = targetUrlStr.endsWith('.m3u8') || targetUrlStr.includes('.m3u8') || 
+                            targetUrlStr.endsWith('.vtt') || targetUrlStr.includes('.vtt') || 
+                            targetUrlStr.endsWith('.srt') || targetUrlStr.includes('.srt');
+
+    let fetchUrl = targetUrlStr;
+    if (isManifestOrVtt) {
+      // Route through high-availability CORS proxy to bypass security policies natively
+      fetchUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrlStr);
+    }
+
     // Build the request headers bypassing origin security
     const headers = new Headers();
     headers.set('Referer', 'https://vibeplayer.site/');
@@ -35,10 +46,10 @@ self.addEventListener('fetch', (event) => {
       headers.set('Range', rangeHeader);
     }
 
-    const modifiedRequest = new Request(targetUrlStr, {
+    const modifiedRequest = new Request(fetchUrl, {
       method: 'GET',
       headers: headers,
-      mode: 'no-cors',
+      mode: 'cors',
       credentials: 'omit',
       referrer: 'https://vibeplayer.site/',
       referrerPolicy: 'unsafe-url',
@@ -48,21 +59,18 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       Promise.resolve()
         .then(() => fetch(modifiedRequest))
-        .then(async (response) => {
-          // In no-cors mode, type is 'opaque', status is 0, and body is non-readable.
-          // Simply forward opaque responses immediately to bypass CORS blocks completely.
-          if (response.type === 'opaque' || !response.ok) {
-            console.log('[SW Proxy] Stealth Mode forwarding opaque/unreadable response for:', targetUrlStr);
-            return response;
+        .then(async (originalResponse) => {
+          if (!originalResponse.ok) {
+            console.warn('[SW Proxy] Upstream returned error:', originalResponse.status, targetUrlStr);
+            return originalResponse;
           }
 
-
-          const contentType = response.headers.get('content-type') || '';
+          const contentType = originalResponse.headers.get('content-type') || '';
           const isManifest = targetUrlStr.endsWith('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
 
           // If the request targets an HLS manifest, rewrite all links locally
           if (isManifest) {
-            const body = await response.text();
+            const body = await originalResponse.text();
             const baseUrl = targetUrlStr.substring(0, targetUrlStr.lastIndexOf('/') + 1);
             const isMaster = body.includes('#EXT-X-STREAM-INF');
 
@@ -73,7 +81,7 @@ self.addEventListener('fetch', (event) => {
 
                 // Inject CODECS into master manifest for Video.js VHS detection
                 if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
-                  return trimmed.replace(
+                   return trimmed.replace(
                     '#EXT-X-STREAM-INF:',
                     '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
                   );
@@ -95,20 +103,21 @@ self.addEventListener('fetch', (event) => {
               })
               .join('\n');
 
+            const newHeaders = new Headers();
+            newHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
+            newHeaders.set('Access-Control-Allow-Origin', '*');
+            newHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+            newHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
+
             return new Response(rewritten, {
-              status: response.status,
-              statusText: response.statusText,
-              headers: {
-                'Content-Type': 'application/vnd.apple.mpegurl',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept'
-              }
+              status: originalResponse.status,
+              statusText: originalResponse.statusText,
+              headers: newHeaders
             });
           }
 
           // Read body as ArrayBuffer for binary stripping if segment
-          let buffer = await response.arrayBuffer();
+          let buffer = await originalResponse.arrayBuffer();
           let uint8 = new Uint8Array(buffer);
 
           // PNG magic: 89 50 4E 47
@@ -129,11 +138,11 @@ self.addEventListener('fetch', (event) => {
             }
           }
 
-          // Generate response with fully opened access headers
-          const responseHeaders = new Headers(response.headers);
+          // Force-Inject Allowed Origin Handshakes Natively to trick browser CORS check
+          const responseHeaders = new Headers(originalResponse.headers);
           responseHeaders.set('Access-Control-Allow-Origin', '*');
-          responseHeaders.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-          responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
+          responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept, Range');
 
           // Force subtitle tracks content-type if matching VTT
           if (targetUrlStr.endsWith('.vtt') || targetUrlStr.endsWith('.srt') || contentType.includes('text/vtt')) {
@@ -141,8 +150,8 @@ self.addEventListener('fetch', (event) => {
           }
 
           return new Response(buffer, {
-            status: response.status,
-            statusText: response.statusText,
+            status: originalResponse.status,
+            statusText: originalResponse.statusText,
             headers: responseHeaders
           });
         })

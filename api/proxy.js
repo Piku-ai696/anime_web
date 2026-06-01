@@ -156,7 +156,7 @@ app.get(['/proxy', '/api/proxy'], proxyLimiter, async (req, res) => {
           const trimmed = line.trim();
 
           // Inject CODECS into master manifest for Video.js VHS detection
-          if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
+          if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS=')) {
             return trimmed.replace(
               '#EXT-X-STREAM-INF:',
               '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'

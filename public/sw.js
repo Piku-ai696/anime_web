@@ -1,22 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ZyroX — Force-Activating Media Proxy Service Worker
+// ZyroX — Standard High-Stability Media Proxy Service Worker
 // ═══════════════════════════════════════════════════════════════════════════════
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installed. Forcing skipWaiting.');
-  self.skipWaiting(); // Instantly kill the old worker
+  console.log('[SW] Installed. Skipping waiting phase.');
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activated. Claiming clients immediately.');
-  event.waitUntil(
-    self.registration.unregister().then(() => self.clients.claim()).then(() => {
-      // Force all open tabs to update immediately
-      return self.clients.matchAll().then(clients => {
-        clients.forEach(client => client.navigate(client.url));
-      });
-    })
-  );
+  console.log('[SW] Activated. Securely claiming clients.');
+  // Wrap clients.claim inside waitUntil to completely avoid InvalidStateError crashes
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -30,7 +24,6 @@ self.addEventListener('fetch', (event) => {
     const isSubtitle = targetUrlStr.includes('.vtt');
 
     if (isManifest || isSubtitle) {
-      // Route manifests and subtitles through Vercel server proxy to bypass Referer blocks safely
       const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(targetUrlStr);
       
       event.respondWith(
@@ -42,20 +35,18 @@ self.addEventListener('fetch', (event) => {
             newHeaders.set('Access-Control-Allow-Origin', '*');
 
             if (isManifest) {
-              // FORCE HLS Content-Type so Video.js recognizes it
               newHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
               
               let body = await response.text();
               const baseUrl = targetUrlStr.substring(0, targetUrlStr.lastIndexOf('/') + 1);
               
-              // BULLETPROOF CODEC INJECTION: Enforce strict video profiles on every playlist descriptor
               const lines = body.split('\n').map(line => {
                 let trimmed = line.trim();
                 
+                // Unconditional codec injection on all streaming infrastructure indicators
                 if (trimmed.startsWith('#EXT-X-STREAM-INF')) {
-                  // If it has a custom codec or lacks one, clear it and force standard AVC/AAC compatibility strings
                   if (trimmed.includes('CODECS=')) {
-                    trimmed = trimmed.replace(/CODECS="[^"]*"/, 'CODECS="avc1.64001f,mp4a.40.2"').replace(/CODECS=[^,\s]*/, 'CODECS="avc1.64001f,mp4a.40.2"');
+                    trimmed = trimmed.replace(/CODECS="[^"]*"/, 'CODECS="avc1.64001f,mp4a.40.2"');
                   } else {
                     trimmed = trimmed.replace('#EXT-X-STREAM-INF:', '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",');
                   }
@@ -83,12 +74,12 @@ self.addEventListener('fetch', (event) => {
               newHeaders.set('Content-Type', 'text/vtt');
             }
 
-            return new Response(response.body, { headers: newHeaders });
+            return response;
           })
           .catch(() => new Response('', { status: 200 }))
       );
     } else {
-      // Direct stream binary video chunks (.ts)
+      // Direct pass-through routing for segment media payloads (.ts)
       const modifiedRequest = new Request(targetUrlStr, {
         method: 'GET',
         headers: { 'Referer': 'https://vibeplayer.site/' },

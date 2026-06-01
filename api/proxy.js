@@ -512,20 +512,4 @@ app.get('/theater.html', (_req, res) => {
 // START SERVER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.listen(PORT, () => {
-  console.log('');
-  console.log('  ╔═══════════════════════════════════════════════════════╗');
-  console.log('  ║          ZyroX — Production Stream Server            ║');
-  console.log('  ╠═══════════════════════════════════════════════════════╣');
-  console.log(`  ║  Server:    http://localhost:${PORT}                    ║`);
-  console.log(`  ║  Theater:   http://localhost:${PORT}/                    ║`);
-  console.log(`  ║  Health:    http://localhost:${PORT}/health              ║`);
-  console.log('  ║  Proxy:     /proxy?url=<encoded>                     ║');
-  console.log('  ║  API:       /api/next-episode (POST)                 ║');
-  console.log('  ║  API:       /api/anime/:id (GET)                     ║');
-  console.log('  ╠═══════════════════════════════════════════════════════╣');
-  console.log('  ║  Security:  Helmet · CORS Lock · Rate Limiter        ║');
-  console.log('  ║  Supabase:  Connected                                ║');
-  console.log('  ╚═══════════════════════════════════════════════════════╝');
-  console.log('');
-});
+module.exports = app;

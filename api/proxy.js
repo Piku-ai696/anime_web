@@ -53,7 +53,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://127.0.0.1:3001',
   'https://zyrox.gt.tc',
-  'https://zyrox-streaming.vercel.app' 
+  'https://zyrox-streaming.vercel.app'
 ];
 
 app.use(cors({
@@ -291,7 +291,7 @@ app.get('/api/anime/:id/recommendations', apiLimiter, async (req, res) => {
     let results = [];
     if (allTokens.length > 0) {
       const orConditions = allTokens.map(token => `title.ilike.%${token}%,description.ilike.%${token}%`).join(',');
-      
+
       const { data, error } = await supabase
         .from('anime_list')
         .select('id, title, poster, s_eps, s_m3u8_url, d_m3u8_url, description')
@@ -513,3 +513,5 @@ app.get('/theater.html', (_req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 module.exports = app;
+
+

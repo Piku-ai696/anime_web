@@ -10,7 +10,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activated. Claiming clients immediately.');
   event.waitUntil(
-    self.clients.claim().then(() => {
+    self.registration.unregister().then(() => self.clients.claim()).then(() => {
       // Force all open tabs to update immediately
       return self.clients.matchAll().then(clients => {
         clients.forEach(client => client.navigate(client.url));
@@ -55,7 +55,7 @@ self.addEventListener('fetch', (event) => {
                 if (trimmed.startsWith('#EXT-X-STREAM-INF')) {
                   // If it has a custom codec or lacks one, clear it and force standard AVC/AAC compatibility strings
                   if (trimmed.includes('CODECS=')) {
-                    trimmed = trimmed.replace(/CODECS="[^"]*"/, 'CODECS="avc1.64001f,mp4a.40.2"');
+                    trimmed = trimmed.replace(/CODECS="[^"]*"/, 'CODECS="avc1.64001f,mp4a.40.2"').replace(/CODECS=[^,\s]*/, 'CODECS="avc1.64001f,mp4a.40.2"');
                   } else {
                     trimmed = trimmed.replace('#EXT-X-STREAM-INF:', '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",');
                   }

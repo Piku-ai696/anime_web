@@ -181,7 +181,7 @@ app.get(['/proxy', '/api/proxy'], proxyLimiter, async (req, res) => {
         })
         .join('\n');
 
-      res.setHeader('Content-Type', 'application/x-mpegURL');
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       return res.send(rewritten);
     } else {

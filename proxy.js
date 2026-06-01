@@ -71,6 +71,14 @@ function stripPngMagic(arrayBuffer) {
 
 export default {
   async fetch(request, env, ctx) {
+    // ── Global Environment Safety check ──
+    if (!env || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+      return jsonResponse({
+        error: 'Configuration Error',
+        message: 'Supabase URL or ANON Key is missing from the Worker environment variables. Please configure SUPABASE_URL and SUPABASE_ANON_KEY in your Cloudflare dashboard.'
+      }, 500);
+    }
+
     // ── OPTIONS Preflight Handshake ──
     if (request.method === 'OPTIONS') {
       return handleOptions();
@@ -220,9 +228,12 @@ export default {
       try {
         const trendData = await supabaseFetch('anime_list_trending?select=id,spot&spot=not.is.null&order=spot.asc', env);
         if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
 
-        const ids = trendData.map(item => item.id);
-        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${ids.map(encodeURIComponent).join(',')})`, env);
+        // Build the clean postgrest IN array query parameters
+        const idQueryString = ids.join(',');
+        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${idQueryString})`, env);
 
         const mapped = trendData.map(t => {
           const anime = animeData.find(a => a.id === t.id);
@@ -240,9 +251,12 @@ export default {
       try {
         const trendData = await supabaseFetch('anime_list_trending?select=id,no&no=not.is.null&order=no.asc', env);
         if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
 
-        const ids = trendData.map(item => item.id);
-        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${ids.map(encodeURIComponent).join(',')})`, env);
+        // Build the clean postgrest IN array query parameters
+        const idQueryString = ids.join(',');
+        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${idQueryString})`, env);
 
         const mapped = trendData.map(t => {
           const anime = animeData.find(a => a.id === t.id);
@@ -260,9 +274,12 @@ export default {
       try {
         const trendData = await supabaseFetch('anime_list_trending?select=id,T10&T10=not.is.null&order=T10.asc', env);
         if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
 
-        const ids = trendData.map(item => item.id);
-        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${ids.map(encodeURIComponent).join(',')})`, env);
+        // Build the clean postgrest IN array query parameters
+        const idQueryString = ids.join(',');
+        const animeData = await supabaseFetch(`anime_list?select=id,title,description,poster,s_eps,s_m3u8_url,d_m3u8_url&id=in.(${idQueryString})`, env);
 
         const mapped = trendData.map(t => {
           const anime = animeData.find(a => a.id === t.id);
@@ -420,4 +437,3 @@ export default {
     });
   },
 };
-

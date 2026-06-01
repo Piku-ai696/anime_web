@@ -205,7 +205,7 @@ app.get(['/proxy', '/api/proxy'], proxyLimiter, async (req, res) => {
 // If no further episodes exist, returns series_complete.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.post('/api/next-episode', apiLimiter, async (req, res) => {
+app.post(['/next-episode', '/api/next-episode'], apiLimiter, async (req, res) => {
   const { anime_id, current_number } = req.body;
 
   // Validate inputs
@@ -305,7 +305,7 @@ app.post('/api/next-episode', apiLimiter, async (req, res) => {
 // API: /api/anime/:id — Fetch full anime data for Theater Mode
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/anime/:id', apiLimiter, async (req, res) => {
+app.get(['/anime/:id', '/api/anime/:id'], apiLimiter, async (req, res) => {
   const { id } = req.params;
 
   let data = null;
@@ -335,7 +335,7 @@ app.get('/api/anime/:id', apiLimiter, async (req, res) => {
 // API: /api/anime/:id/recommendations — Relational Suggestions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/anime/:id/recommendations', apiLimiter, async (req, res) => {
+app.get(['/anime/:id/recommendations', '/api/anime/:id/recommendations'], apiLimiter, async (req, res) => {
   const { id } = req.params;
   try {
     const { data: currentAnime, error: fetchErr } = await supabase
@@ -407,7 +407,7 @@ app.get('/api/anime/:id/recommendations', apiLimiter, async (req, res) => {
 // API: /api/search — Live Database Search (Limited to 24 results)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/search', apiLimiter, async (req, res) => {
+app.get(['/search', '/api/search'], apiLimiter, async (req, res) => {
   const query = req.query.q;
   if (!query) {
     return res.status(400).json({ error: 'Missing query parameter "q"' });
@@ -434,7 +434,7 @@ app.get('/api/search', apiLimiter, async (req, res) => {
 // API: /api/spotlight — Spotlight Slider Carousel (Ordered by spot positioning)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/trending/spotlight', apiLimiter, async (_req, res) => {
+app.get(['/trending/spotlight', '/api/trending/spotlight'], apiLimiter, async (_req, res) => {
   try {
     const { data: trendData, error: trendErr } = await supabase
       .from('anime_list_trending')
@@ -470,7 +470,7 @@ app.get('/api/trending/spotlight', apiLimiter, async (_req, res) => {
 // API: /api/trending — Trending Now Row (Ordered by no positioning)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/trending/now', apiLimiter, async (_req, res) => {
+app.get(['/trending/now', '/api/trending/now'], apiLimiter, async (_req, res) => {
   try {
     const { data: trendData, error: trendErr } = await supabase
       .from('anime_list_trending')
@@ -506,7 +506,7 @@ app.get('/api/trending/now', apiLimiter, async (_req, res) => {
 // API: /api/top10 — Top 10 Global Chart (Ordered by T10 placement)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/trending/top10', apiLimiter, async (_req, res) => {
+app.get(['/trending/top10', '/api/trending/top10'], apiLimiter, async (_req, res) => {
   try {
     const { data: trendData, error: trendErr } = await supabase
       .from('anime_list_trending')
@@ -515,3 +515,70 @@ app.get('/api/trending/top10', apiLimiter, async (_req, res) => {
       .order('T10', { ascending: true });
 
     if (trendErr) throw trendErr;
+    if (!trendData || trendData.length === 0) return res.json([]);
+
+    const ids = trendData.map(item => item.id);
+    const { data: animeData, error: animeErr } = await supabase
+      .from('anime_list')
+      .select('id, title, description, poster, s_eps, s_m3u8_url, d_m3u8_url')
+      .in('id', ids);
+
+    if (animeErr) throw animeErr;
+
+    const mapped = trendData.map(t => {
+      const anime = animeData.find(a => a.id === t.id);
+      return anime ? { ...anime, T10: t.T10 } : null;
+    }).filter(Boolean);
+
+    return res.json(mapped);
+  } catch (err) {
+    console.error('[API] Top 10 error:', err.message);
+    res.status(500).json({ error: 'Failed to load top 10' });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// API: /api/catalog — List all anime for Homepage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get(['/catalog', '/api/catalog'], apiLimiter, async (_req, res) => {
+  try {
+    let data = null;
+    try {
+      const { data: dbData, error } = await supabase
+        .from('anime_list')
+        .select('id, title, poster, s_eps, s_m3u8_url, d_m3u8_url, description')
+        .order('title', { ascending: true });
+
+      if (!error && dbData && dbData.length > 0) {
+        data = dbData;
+      }
+    } catch (err) {
+      console.warn(`[Supabase] Catalog fetch failed:`, err.message);
+    }
+
+    return res.json(data || []);
+  } catch (err) {
+    console.error('[API] ✗ Catalog error:', err.message);
+    res.status(500).json({ error: 'Failed to load catalog' });
+  }
+});
+
+// ── Details Page Route ────────────────────────────────────────────────────────
+app.get(['/anime', '/anime.html'], (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/anime.html'));
+});
+
+// ── Theater Page Route ────────────────────────────────────────────────────────
+app.get(['/theater', '/theater.html'], (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/theater.html'));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// START SERVER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+module.exports = app;
+
+

@@ -665,6 +665,7 @@
       html5: {
         vhs: {
           overrideNative: true,
+          handleManifestRedirects: true,
           useDevicePixelRatio: true,
           enableLowInitialPlaylist: true,
         },
@@ -1120,8 +1121,9 @@
         });
       }
 
-      // Update player source via raw HLS stream URL (handled transparently by Service Worker)
-      player.src({ src: url, type: 'application/x-mpegURL' });
+      // Update player source via server negotiator proxy for the manifest ONLY
+      const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(url);
+      player.src({ src: proxiedUrl, type: 'application/x-mpegURL' });
       player.play().catch(() => {}); // Autoplay may be blocked
 
       // Update Now Playing bar

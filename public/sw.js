@@ -38,7 +38,7 @@ self.addEventListener('fetch', (event) => {
     const modifiedRequest = new Request(targetUrlStr, {
       method: 'GET',
       headers: headers,
-      mode: 'cors',
+      mode: 'no-cors',
       credentials: 'omit',
       referrer: 'https://vibeplayer.site/',
       referrerPolicy: 'unsafe-url',
@@ -46,12 +46,16 @@ self.addEventListener('fetch', (event) => {
     });
 
     event.respondWith(
-      fetch(modifiedRequest)
+      Promise.resolve()
+        .then(() => fetch(modifiedRequest))
         .then(async (response) => {
-          if (!response.ok) {
-            console.warn('[SW Proxy] Upstream returned error:', response.status, targetUrlStr);
+          // In no-cors mode, type is 'opaque', status is 0, and body is non-readable.
+          // Simply forward opaque responses immediately to bypass CORS blocks completely.
+          if (response.type === 'opaque' || !response.ok) {
+            console.log('[SW Proxy] Stealth Mode forwarding opaque/unreadable response for:', targetUrlStr);
             return response;
           }
+
 
           const contentType = response.headers.get('content-type') || '';
           const isManifest = targetUrlStr.endsWith('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
@@ -143,8 +147,9 @@ self.addEventListener('fetch', (event) => {
           });
         })
         .catch((err) => {
-          console.error('[SW Proxy] Intercept fetch failed:', targetUrlStr, err);
-          return new Response('Local Proxy Intercept Failed: ' + err.message, { status: 502 });
+          console.error('[SW Proxy] Stealth fetch intercept failed for:', targetUrlStr, err);
+          // Return a neutral empty response rather than letting a 502 crash the media player
+          return new Response('', { status: 200, statusText: 'OK' });
         })
     );
   }

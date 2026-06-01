@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ZyroX — Deep-Intercept Media Proxy Service Worker
+// ZyroX — Hybrid-Secured Interceptor Service Worker
 // ═══════════════════════════════════════════════════════════════════════════════
 
 self.addEventListener('install', (event) => {
@@ -23,6 +23,7 @@ self.addEventListener('fetch', (event) => {
     const isSubtitle = targetUrlStr.includes('.vtt');
 
     if (isManifest || isSubtitle) {
+      // Manifests and subtitles route through our secure Vercel server proxy
       const proxiedUrl = '/api/proxy?url=' + encodeURIComponent(targetUrlStr);
       
       event.respondWith(
@@ -85,20 +86,13 @@ self.addEventListener('fetch', (event) => {
           .catch(() => new Response('', { status: 200 }))
       );
     } else {
-      // Direct pass-through routing for segment media payloads (.ts)
+      // Direct direct-fetch bypassing with no-cors and spoofed Referer for heavy video chunks (.ts)
       const modifiedRequest = new Request(targetUrlStr, {
         method: 'GET',
         headers: { 'Referer': 'https://vibeplayer.site/' },
         mode: 'no-cors'
       });
-      event.respondWith(
-        fetch(modifiedRequest).then(res => {
-          const streamHeaders = new Headers(res.headers);
-          streamHeaders.set('Content-Type', 'video/mp2t');
-          streamHeaders.set('Access-Control-Allow-Origin', '*');
-          return new Response(res.body, { headers: streamHeaders });
-        })
-      );
+      event.respondWith(fetch(modifiedRequest));
     }
   }
 });

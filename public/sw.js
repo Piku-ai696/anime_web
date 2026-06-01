@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ZyroX — Standard High-Stability Media Proxy Service Worker
+// ZyroX — Deep-Intercept Media Proxy Service Worker
 // ═══════════════════════════════════════════════════════════════════════════════
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installed. Skipping waiting phase.');
+  console.log('[SW] Installed. skipping waiting phase.');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activated. Securely claiming clients.');
-  // Wrap clients.claim inside waitUntil to completely avoid InvalidStateError crashes
   event.waitUntil(self.clients.claim());
 });
 
@@ -43,7 +42,7 @@ self.addEventListener('fetch', (event) => {
               const lines = body.split('\n').map(line => {
                 let trimmed = line.trim();
                 
-                // Unconditional codec injection on all streaming infrastructure indicators
+                // Codec injection on all streaming infrastructure indicators
                 if (trimmed.startsWith('#EXT-X-STREAM-INF')) {
                   if (trimmed.includes('CODECS=')) {
                     trimmed = trimmed.replace(/CODECS="[^"]*"/, 'CODECS="avc1.64001f,mp4a.40.2"');
@@ -53,6 +52,7 @@ self.addEventListener('fetch', (event) => {
                   return trimmed;
                 }
                 
+                // Deep Path Rewriting: rewrite relative/absolute paths to client-proxy
                 if (trimmed && !trimmed.startsWith('#')) {
                   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
                     return `/client-proxy?url=${encodeURIComponent(trimmed)}`;
@@ -72,6 +72,12 @@ self.addEventListener('fetch', (event) => {
 
             if (isSubtitle) {
               newHeaders.set('Content-Type', 'text/vtt');
+              const body = await response.text();
+              return new Response(body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: newHeaders
+              });
             }
 
             return response;

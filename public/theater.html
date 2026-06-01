@@ -856,6 +856,10 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     function applyAmbientGlow(posterUrl) {
+      setNebulaAmbientAura(posterUrl);
+    }
+
+    function setNebulaAmbientAura(posterUrl) {
       if (!posterUrl) return;
 
       const img = new Image();
@@ -898,7 +902,7 @@
         console.warn('[Ambient] Failed to load poster for glow sampling');
       };
 
-      // Load the poster URL directly from the CDN for CORS-safe ambient glow sampling
+      // Load the raw poster URL directly from the CDN for CORS-safe ambient glow sampling
       img.src = posterUrl;
     }
 

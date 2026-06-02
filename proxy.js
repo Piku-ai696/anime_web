@@ -161,22 +161,25 @@ export default {
                 return line;
               }
 
-              // Absolute Link Filtering
-              if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                // CRITICAL: If the URL belongs to ByteDance or Vibeplayer networks, bypass the worker entirely!
-                if (trimmed.includes('ibyteimg.com') || trimmed.includes('byteimg.com') || trimmed.includes('vibeplayer.site')) {
-                  return trimmed;
-                }
-                return `/proxy?url=${encodeURIComponent(trimmed)}`;
+              // Split-traffic logic: proxy all sub-playlists (.m3u8) and bypass proxy for video segments (.ts)
+              const isPlaylist = trimmed.endsWith('.m3u8') || trimmed.includes('.m3u8?') || trimmed.includes('.m3u8&');
+              const isSegment = trimmed.endsWith('.ts') || trimmed.includes('.ts?') || trimmed.includes('.ts&');
+
+              let absoluteUrl = trimmed;
+              if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+                absoluteUrl = new URL(trimmed, baseUrl).href;
               }
 
-              // Relative Link Filtering
-              const absoluteUrl = new URL(trimmed, baseUrl).href;
-              if (absoluteUrl.includes('ibyteimg.com') || absoluteUrl.includes('byteimg.com') || absoluteUrl.includes('vibeplayer.site')) {
-                return absoluteUrl; // Let client browser fetch it directly
+              if (isPlaylist) {
+                return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+              } else if (isSegment) {
+                return absoluteUrl;
+              } else {
+                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                  return `/proxy?url=${encodeURIComponent(trimmed)}`;
+                }
+                return line;
               }
-              
-              return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
             })
             .join('\n');
 

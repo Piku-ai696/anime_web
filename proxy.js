@@ -156,12 +156,26 @@ export default {
                 return line;
               }
 
-              // Absolute URL
+              // Identify video segments (.ts chunks)
+              const isSegment = trimmed.toLowerCase().endsWith('.ts') || 
+                               trimmed.toLowerCase().split('?')[0].endsWith('.ts') ||
+                               trimmed.toLowerCase().includes('.ts');
+
+              if (isSegment) {
+                // Return direct absolute URL so browser downloads directly from CDN
+                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                  return trimmed;
+                }
+                const absoluteUrl = new URL(trimmed, baseUrl).href;
+                return absoluteUrl;
+              }
+
+              // Absolute URL for nested play lists (.m3u8)
               if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
                 return `/proxy?url=${encodeURIComponent(trimmed)}`;
               }
 
-              // Relative URL resolution
+              // Relative URL resolution for nested playlists
               const absoluteUrl = new URL(trimmed, baseUrl).href;
               return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
             })

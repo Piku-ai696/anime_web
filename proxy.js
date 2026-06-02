@@ -49,6 +49,25 @@ function stripPngMagic(arrayBuffer) {
   return uint8;
 }
 
+const SUPABASE_API_URL = 'https://ucgxzganknweqfucjqqw.supabase.co/rest/v1';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTk3MzcsImV4cCI6MjA5NDc3NTczN30.S1oOUCz6bhXGcULeZPA3Uc7w33_Q-UGAjRH_FEPuCjo';
+
+async function supabaseFetch(path, env) {
+  const url = `${env.SUPABASE_URL || SUPABASE_API_URL}${path}`;
+  const key = env.SUPABASE_ANON_KEY || SUPABASE_KEY;
+  const res = await fetch(url, {
+    headers: {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
 export default {
   async fetch(request, env, ctx) {
     // ── OPTIONS Preflight Handshake ──
@@ -65,50 +84,87 @@ export default {
       return jsonResponse({ status: 'ok', worker: true, timestamp: new Date().toISOString() });
     }
 
-    // ── GET /proxy — High-Fidelity Media & Subtitle Pass-Through ──
+    // ── Trending Spotlight Endpoint ──
+    if (path === '/api/trending/spotlight') {
+      try {
+        const trendData = await supabaseFetch('/anime_list_trending?spot=not.is.null&order=spot.asc', env);
+        if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
+
+        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
+        const mapped = trendData.map(t => {
+          const anime = animeData.find(a => a.id === t.id);
+          return anime ? { ...anime, spot: t.spot } : null;
+        }).filter(Boolean);
+
+        return jsonResponse(mapped);
+      } catch (err) {
+        return jsonResponse({ error: true, message: err.message }, 500);
+      }
+    }
+
+    // ── Trending Now Endpoint ──
+    if (path === '/api/trending/now') {
+      try {
+        const trendData = await supabaseFetch('/anime_list_trending?no=not.is.null&order=no.asc', env);
+        if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
+
+        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
+        const mapped = trendData.map(t => {
+          const anime = animeData.find(a => a.id === t.id);
+          return anime ? { ...anime, no: t.no } : null;
+        }).filter(Boolean);
+
+        return jsonResponse(mapped);
+      } catch (err) {
+        return jsonResponse({ error: true, message: err.message }, 500);
+      }
+    }
+
+    // ── Top 10 Global Endpoint ──
+    if (path === '/api/trending/top10') {
+      try {
+        const trendData = await supabaseFetch('/anime_list_trending?T10=not.is.null&order=T10.asc', env);
+        if (!trendData || trendData.length === 0) return jsonResponse([]);
+        const ids = trendData.map(item => item.id).filter(Boolean);
+        if (ids.length === 0) return jsonResponse([]);
+
+        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
+        const mapped = trendData.map(t => {
+          const anime = animeData.find(a => a.id === t.id);
+          return anime ? { ...anime, T10: t.T10 } : null;
+        }).filter(Boolean);
+
+        return jsonResponse(mapped);
+      } catch (err) {
+        return jsonResponse({ error: true, message: err.message }, 500);
+      }
+    }
+
+    // ── GET /proxy — High-Fidelity Media Pass-Through ──
     if (path === '/proxy') {
       const targetUrl = searchParams.get('url');
       if (!targetUrl) {
         return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
       }
 
-      // Enforce strict player-only resource validation (Playlists, Video segments, Subtitles, and Player posters)
-      let isPlayerResource = false;
+      // Keep the worker active only for text manifest files (.m3u8 or mpegurl content types)
+      let isManifest = false;
       try {
         const urlObj = new URL(targetUrl);
         const pathnameLower = urlObj.pathname.toLowerCase();
-        isPlayerResource = pathnameLower.endsWith('.m3u8') || 
-                           pathnameLower.endsWith('.ts') || 
-                           pathnameLower.endsWith('.vtt') || 
-                           pathnameLower.endsWith('.srt') ||
-                           pathnameLower.endsWith('.jpg') ||
-                           pathnameLower.endsWith('.jpeg') ||
-                           pathnameLower.endsWith('.png') ||
-                           pathnameLower.endsWith('.webp') ||
-                           targetUrl.toLowerCase().includes('m3u8') ||
-                           targetUrl.toLowerCase().includes('.ts') ||
-                           targetUrl.toLowerCase().includes('.vtt') ||
-                           targetUrl.toLowerCase().includes('.srt');
+        isManifest = pathnameLower.endsWith('.m3u8') || 
+                     targetUrl.toLowerCase().includes('m3u8') || 
+                     targetUrl.toLowerCase().includes('mpegurl');
       } catch (e) {
-        isPlayerResource = false;
+        isManifest = false;
       }
 
-      if (!isPlayerResource) {
-        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to video player streaming resources.' }, 403);
-      }
-
-      // Check if this request is for a video segment (ends in .ts) or a subtitle file (ends in .vtt)
-      const targetUrlLower = targetUrl.toLowerCase();
-      const isCacheableMedia = targetUrlLower.endsWith('.ts') || targetUrlLower.endsWith('.vtt') ||
-                               targetUrlLower.split('?')[0].endsWith('.ts') || targetUrlLower.split('?')[0].endsWith('.vtt');
-
-      const cache = caches.default;
-
-      if (isCacheableMedia) {
-        let cachedResponse = await cache.match(request);
-        if (cachedResponse) {
-          return cachedResponse; // Zero worker request overhead
-        }
+      if (!isManifest) {
+        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to text manifest files (.m3u8).' }, 403);
       }
 
       try {
@@ -118,6 +174,13 @@ export default {
             'Origin': 'https://vibeplayer.site',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24", "Google Chrome";v="125"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'cross-site',
           },
           redirect: 'follow',
         });
@@ -129,102 +192,55 @@ export default {
           });
         }
 
-        const contentType = upstream.headers.get('content-type') || '';
-        
-        // 1. M3U8 Manifest Rewriting Engine
-        const isManifest = targetUrl.endsWith('.m3u8') || contentType.includes('mpegurl');
-        if (isManifest) {
-          const body = await upstream.text();
-          const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
-          const isMaster = body.includes('#EXT-X-STREAM-INF');
+        const body = await upstream.text();
+        const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
+        const isMaster = body.includes('#EXT-X-STREAM-INF');
 
-          const rewritten = body
-            .split('\n')
-            .map(line => {
-              const trimmed = line.trim();
+        const rewritten = body
+          .split('\n')
+          .map(line => {
+            const trimmed = line.trim();
 
-              // Inject HLS codecs if required
-              if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
-                return trimmed.replace(
-                  '#EXT-X-STREAM-INF:',
-                  '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
-                );
-              }
+            if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
+              return trimmed.replace(
+                '#EXT-X-STREAM-INF:',
+                '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
+              );
+            }
 
-              // Skip comments or empty lines
-              if (!trimmed || trimmed.startsWith('#')) {
-                return line;
-              }
+            if (!trimmed || trimmed.startsWith('#')) {
+              return line;
+            }
 
-              // Absolute URL
+            // Split-traffic logic: proxy all sub-playlists (.m3u8) and bypass proxy for video segments (.ts)
+            const isPlaylist = trimmed.endsWith('.m3u8') || trimmed.includes('.m3u8?') || trimmed.includes('.m3u8&');
+            const isSegment = trimmed.endsWith('.ts') || trimmed.includes('.ts?') || trimmed.includes('.ts&');
+
+            let absoluteUrl = trimmed;
+            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+              absoluteUrl = new URL(trimmed, baseUrl).href;
+            }
+
+            if (isPlaylist) {
+              return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+            } else if (isSegment) {
+              return absoluteUrl;
+            } else {
               if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
                 return `/proxy?url=${encodeURIComponent(trimmed)}`;
               }
+              return line;
+            }
+          })
+          .join('\n');
 
-              // Relative URL resolution
-              const absoluteUrl = new URL(trimmed, baseUrl).href;
-              return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
-            })
-            .join('\n');
-
-          return new Response(rewritten, {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/vnd.apple.mpegurl',
-            },
-          });
-        }
-
-        // 2. Subtitle Pass-Through
-        const isSubtitle = targetUrl.endsWith('.vtt') || targetUrl.endsWith('.srt') ||
-          contentType.includes('text/vtt') || contentType.includes('subrip');
-        if (isSubtitle) {
-          const body = await upstream.text();
-          const newHeaders = new Headers({
-            ...corsHeaders,
-            'Content-Type': 'text/vtt',
-          });
-
-          if (isCacheableMedia) {
-            newHeaders.set('Cache-Control', 'public, max-age=86400');
-          }
-
-          const response = new Response(body, {
-            status: 200,
-            headers: newHeaders,
-          });
-
-          if (isCacheableMedia) {
-            ctx.waitUntil(cache.put(request, response.clone()));
-          }
-
-          return response;
-        }
-
-        // 3. Binary / TS Segment Stripping
-        const arrayBuffer = await upstream.arrayBuffer();
-        const strippedBuffer = stripPngMagic(arrayBuffer);
-
-        const newHeaders = new Headers({
-          ...corsHeaders,
-          'Content-Type': 'video/mp2t',
-        });
-
-        if (isCacheableMedia) {
-          newHeaders.set('Cache-Control', 'public, max-age=86400');
-        }
-
-        const response = new Response(strippedBuffer, {
+        return new Response(rewritten, {
           status: 200,
-          headers: newHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/vnd.apple.mpegurl',
+          },
         });
-
-        if (isCacheableMedia) {
-          ctx.waitUntil(cache.put(request, response.clone()));
-        }
-
-        return response;
 
       } catch (err) {
         return new Response(`Proxy error: ${err.message}`, {

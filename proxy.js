@@ -101,6 +101,20 @@ export default {
         return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
       }
 
+      // Check if this request is for a video segment (ends in .ts) or a subtitle file (ends in .vtt)
+      const targetUrlLower = targetUrl.toLowerCase();
+      const isCacheableMedia = targetUrlLower.endsWith('.ts') || targetUrlLower.endsWith('.vtt') ||
+                               targetUrlLower.split('?')[0].endsWith('.ts') || targetUrlLower.split('?')[0].endsWith('.vtt');
+
+      const cache = caches.default;
+
+      if (isCacheableMedia) {
+        let cachedResponse = await cache.match(request);
+        if (cachedResponse) {
+          return cachedResponse; // Zero worker request overhead
+        }
+      }
+
       try {
         const upstream = await fetch(targetUrl, {
           headers: {
@@ -171,26 +185,50 @@ export default {
           contentType.includes('text/vtt') || contentType.includes('subrip');
         if (isSubtitle) {
           const body = await upstream.text();
-          return new Response(body, {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'text/vtt',
-            },
+          const newHeaders = new Headers({
+            ...corsHeaders,
+            'Content-Type': 'text/vtt',
           });
+
+          if (isCacheableMedia) {
+            newHeaders.set('Cache-Control', 'public, max-age=86400');
+          }
+
+          const response = new Response(body, {
+            status: 200,
+            headers: newHeaders,
+          });
+
+          if (isCacheableMedia) {
+            ctx.waitUntil(cache.put(request, response.clone()));
+          }
+
+          return response;
         }
 
         // 3. Binary / TS Segment Stripping
         const arrayBuffer = await upstream.arrayBuffer();
         const strippedBuffer = stripPngMagic(arrayBuffer);
 
-        return new Response(strippedBuffer, {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'video/mp2t',
-          },
+        const newHeaders = new Headers({
+          ...corsHeaders,
+          'Content-Type': 'video/mp2t',
         });
+
+        if (isCacheableMedia) {
+          newHeaders.set('Cache-Control', 'public, max-age=86400');
+        }
+
+        const response = new Response(strippedBuffer, {
+          status: 200,
+          headers: newHeaders,
+        });
+
+        if (isCacheableMedia) {
+          ctx.waitUntil(cache.put(request, response.clone()));
+        }
+
+        return response;
 
       } catch (err) {
         return new Response(`Proxy error: ${err.message}`, {

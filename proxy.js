@@ -161,21 +161,21 @@ export default {
                 return line;
               }
 
-              // Absolute URL Bypass Protection
+              // Absolute Link Filtering
               if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                // Bypass proxy completely for ByteDance/TikTok assets to avoid IP blocks
-                if (trimmed.includes('ibyteimg.com') || trimmed.includes('byteimg.com')) {
+                // CRITICAL: If the URL belongs to ByteDance or Vibeplayer networks, bypass the worker entirely!
+                if (trimmed.includes('ibyteimg.com') || trimmed.includes('byteimg.com') || trimmed.includes('vibeplayer.site')) {
                   return trimmed;
                 }
-                // Proxy all other video/playlist references through our worker carrying stealth headers
                 return `/proxy?url=${encodeURIComponent(trimmed)}`;
               }
 
-              // Relative URL resolution
+              // Relative Link Filtering
               const absoluteUrl = new URL(trimmed, baseUrl).href;
-              if (absoluteUrl.includes('ibyteimg.com') || absoluteUrl.includes('byteimg.com')) {
-                return absoluteUrl;
+              if (absoluteUrl.includes('ibyteimg.com') || absoluteUrl.includes('byteimg.com') || absoluteUrl.includes('vibeplayer.site')) {
+                return absoluteUrl; // Let client browser fetch it directly
               }
+              
               return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
             })
             .join('\n');

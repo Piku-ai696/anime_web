@@ -151,17 +151,24 @@ export default {
         return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
       }
 
-      // Keep the worker active only for manifest files (.m3u8), subtitle tracks (.vtt), and poster images
+      // Keep the worker active only for manifest files (.m3u8), subtitle tracks (.vtt), poster images, and PNG-masked segments
       let isManifest = false;
+      let isPngSegment = false;
       let isAllowed = false;
       try {
         const urlObj = new URL(targetUrl);
         const pathnameLower = urlObj.pathname.toLowerCase();
+        const hostLower = urlObj.hostname.toLowerCase();
+
         isManifest = pathnameLower.endsWith('.m3u8') || 
                      targetUrl.toLowerCase().includes('m3u8') || 
                      targetUrl.toLowerCase().includes('mpegurl');
         
+        isPngSegment = hostLower.includes('ibyteimg.com') || 
+                       hostLower.includes('byteimg.com');
+
         isAllowed = isManifest ||
+                    isPngSegment ||
                     pathnameLower.endsWith('.vtt') ||
                     pathnameLower.endsWith('.webp') ||
                     pathnameLower.endsWith('.png') ||
@@ -173,7 +180,7 @@ export default {
       }
 
       if (!isAllowed) {
-        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to manifests, subtitles, and images.' }, 403);
+        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to manifests, subtitles, poster images, and PNG-masked segments.' }, 403);
       }
 
       try {
@@ -198,6 +205,20 @@ export default {
           return new Response(`Upstream returned status ${upstream.status}`, {
             status: upstream.status,
             headers: corsHeaders,
+          });
+        }
+
+        // If it's a PNG-masked segment, strip the PNG signature and return the raw TS file
+        if (isPngSegment) {
+          const bodyBuffer = await upstream.arrayBuffer();
+          const cleanTs = stripPngMagic(bodyBuffer);
+          return new Response(cleanTs, {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'video/mp2t',
+              'Cache-Control': 'public, max-age=31536000',
+            }
           });
         }
 
@@ -234,15 +255,21 @@ export default {
               return line;
             }
 
-            // Split-traffic logic: proxy all sub-playlists (.m3u8) and bypass proxy for video segments
-            const isPlaylist = trimmed.endsWith('.m3u8') || trimmed.includes('.m3u8?') || trimmed.includes('.m3u8&');
-
             let absoluteUrl = trimmed;
             if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
               absoluteUrl = new URL(trimmed, baseUrl).href;
             }
 
-            if (isPlaylist) {
+            const isPlaylist = absoluteUrl.toLowerCase().includes('m3u8') || absoluteUrl.toLowerCase().includes('mpegurl');
+            
+            let isPngSeg = false;
+            try {
+              const urlObj = new URL(absoluteUrl);
+              const hostLower = urlObj.hostname.toLowerCase();
+              isPngSeg = hostLower.includes('ibyteimg.com') || hostLower.includes('byteimg.com');
+            } catch(e) {}
+
+            if (isPlaylist || isPngSeg) {
               return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
             } else {
               return absoluteUrl;

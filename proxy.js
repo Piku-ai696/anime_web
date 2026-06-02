@@ -72,6 +72,31 @@ export default {
         return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
       }
 
+      // Enforce strict player-only resource validation (Playlists, Video segments, Subtitles, and Player posters)
+      let isPlayerResource = false;
+      try {
+        const urlObj = new URL(targetUrl);
+        const pathnameLower = urlObj.pathname.toLowerCase();
+        isPlayerResource = pathnameLower.endsWith('.m3u8') || 
+                           pathnameLower.endsWith('.ts') || 
+                           pathnameLower.endsWith('.vtt') || 
+                           pathnameLower.endsWith('.srt') ||
+                           pathnameLower.endsWith('.jpg') ||
+                           pathnameLower.endsWith('.jpeg') ||
+                           pathnameLower.endsWith('.png') ||
+                           pathnameLower.endsWith('.webp') ||
+                           targetUrl.toLowerCase().includes('m3u8') ||
+                           targetUrl.toLowerCase().includes('.ts') ||
+                           targetUrl.toLowerCase().includes('.vtt') ||
+                           targetUrl.toLowerCase().includes('.srt');
+      } catch (e) {
+        isPlayerResource = false;
+      }
+
+      if (!isPlayerResource) {
+        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to video player streaming resources.' }, 403);
+      }
+
       // Check if this request is for a video segment (ends in .ts) or a subtitle file (ends in .vtt)
       const targetUrlLower = targetUrl.toLowerCase();
       const isCacheableMedia = targetUrlLower.endsWith('.ts') || targetUrlLower.endsWith('.vtt') ||

@@ -143,7 +143,6 @@ export default {
             .map(line => {
               const trimmed = line.trim();
 
-              // Inject HLS codecs if required
               if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
                 return trimmed.replace(
                   '#EXT-X-STREAM-INF:',
@@ -151,39 +150,26 @@ export default {
                 );
               }
 
-              // Skip comments or empty lines
               if (!trimmed || trimmed.startsWith('#')) {
                 return line;
               }
 
-              // Identify video segments (.ts chunks)
-              const isSegment = trimmed.toLowerCase().endsWith('.ts') || 
-                               trimmed.toLowerCase().split('?')[0].endsWith('.ts') ||
-                               trimmed.toLowerCase().includes('.ts');
-
-              if (isSegment) {
-                // Return direct absolute URL so browser downloads directly from CDN
-                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                  return trimmed;
-                }
-                const absoluteUrl = new URL(trimmed, baseUrl).href;
-                return absoluteUrl;
-              }
-
-              // Absolute URL for nested play lists (.m3u8) with bypass exception guards
+              // Absolute URL Bypass Protection
               if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                if (trimmed.includes('ibyteimg.com') || trimmed.includes('byteimg.com')) {
-                  return trimmed; // Return the raw URL directly to bypass the worker proxy entirely
+                // ONLY proxy links if they belong to our video asset server (cdn.cimovix.store)
+                // If it's vibeplayer, ibyteimg, or anything else, bypass the proxy completely!
+                if (trimmed.includes('cdn.cimovix.store')) {
+                  return `/proxy?url=${encodeURIComponent(trimmed)}`;
                 }
-                return `/proxy?url=${encodeURIComponent(trimmed)}`;
+                return trimmed; 
               }
 
-              // Relative URL resolution for nested playlists
+              // Relative URL resolution
               const absoluteUrl = new URL(trimmed, baseUrl).href;
-              if (absoluteUrl.includes('ibyteimg.com') || absoluteUrl.includes('byteimg.com')) {
-                return absoluteUrl; // Return raw resolved URL directly to bypass the worker proxy entirely
+              if (absoluteUrl.includes('cdn.cimovix.store')) {
+                return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
               }
-              return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+              return absoluteUrl;
             })
             .join('\n');
 

@@ -151,20 +151,29 @@ export default {
         return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
       }
 
-      // Keep the worker active only for text manifest files (.m3u8 or mpegurl content types)
+      // Keep the worker active only for manifest files (.m3u8), subtitle tracks (.vtt), and poster images
       let isManifest = false;
+      let isAllowed = false;
       try {
         const urlObj = new URL(targetUrl);
         const pathnameLower = urlObj.pathname.toLowerCase();
         isManifest = pathnameLower.endsWith('.m3u8') || 
                      targetUrl.toLowerCase().includes('m3u8') || 
                      targetUrl.toLowerCase().includes('mpegurl');
+        
+        isAllowed = isManifest ||
+                    pathnameLower.endsWith('.vtt') ||
+                    pathnameLower.endsWith('.webp') ||
+                    pathnameLower.endsWith('.png') ||
+                    pathnameLower.endsWith('.jpg') ||
+                    pathnameLower.endsWith('.jpeg') ||
+                    targetUrl.toLowerCase().includes('.vtt');
       } catch (e) {
-        isManifest = false;
+        isAllowed = false;
       }
 
-      if (!isManifest) {
-        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to text manifest files (.m3u8).' }, 403);
+      if (!isAllowed) {
+        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to manifests, subtitles, and images.' }, 403);
       }
 
       try {
@@ -192,6 +201,19 @@ export default {
           });
         }
 
+        // If it's not a manifest, pass the response directly through with original content-type
+        if (!isManifest) {
+          const contentType = upstream.headers.get('Content-Type') || 'application/octet-stream';
+          const bodyBuffer = await upstream.arrayBuffer();
+          return new Response(bodyBuffer, {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': contentType,
+            }
+          });
+        }
+
         const body = await upstream.text();
         const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
         const isMaster = body.includes('#EXT-X-STREAM-INF');
@@ -212,9 +234,8 @@ export default {
               return line;
             }
 
-            // Split-traffic logic: proxy all sub-playlists (.m3u8) and bypass proxy for video segments (.ts)
+            // Split-traffic logic: proxy all sub-playlists (.m3u8) and bypass proxy for video segments
             const isPlaylist = trimmed.endsWith('.m3u8') || trimmed.includes('.m3u8?') || trimmed.includes('.m3u8&');
-            const isSegment = trimmed.endsWith('.ts') || trimmed.includes('.ts?') || trimmed.includes('.ts&');
 
             let absoluteUrl = trimmed;
             if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
@@ -223,13 +244,8 @@ export default {
 
             if (isPlaylist) {
               return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
-            } else if (isSegment) {
-              return absoluteUrl;
             } else {
-              if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                return `/proxy?url=${encodeURIComponent(trimmed)}`;
-              }
-              return line;
+              return absoluteUrl;
             }
           })
           .join('\n');

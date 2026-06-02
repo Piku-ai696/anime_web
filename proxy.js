@@ -170,13 +170,19 @@ export default {
                 return absoluteUrl;
               }
 
-              // Absolute URL for nested play lists (.m3u8)
+              // Absolute URL for nested play lists (.m3u8) with bypass exception guards
               if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                if (trimmed.includes('ibyteimg.com') || trimmed.includes('byteimg.com')) {
+                  return trimmed; // Return the raw URL directly to bypass the worker proxy entirely
+                }
                 return `/proxy?url=${encodeURIComponent(trimmed)}`;
               }
 
               // Relative URL resolution for nested playlists
               const absoluteUrl = new URL(trimmed, baseUrl).href;
+              if (absoluteUrl.includes('ibyteimg.com') || absoluteUrl.includes('byteimg.com')) {
+                return absoluteUrl; // Return raw resolved URL directly to bypass the worker proxy entirely
+              }
               return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
             })
             .join('\n');
@@ -255,3 +261,4 @@ export default {
     });
   },
 };
+

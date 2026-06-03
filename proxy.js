@@ -96,6 +96,20 @@ async function handleRequest(request, env, ctx) {
     return jsonResponse({ status: 'ok', worker: true, timestamp: new Date().toISOString() });
   }
 
+  // ── Route: /api/ad ──
+  if (path === '/api/ad') {
+    const rawAdCode = `<script async="async" data-cfasync="false" src="https://pl29627205.effectivecpmnetwork.com/c3bec2ae5a707c14264a13b0b8be6369/invoke.js"></script><div id="container-c3bec2ae5a707c14264a13b0b8be6369"></div>`;
+    let encrypted = '';
+    for (let i = 0; i < rawAdCode.length; i++) {
+      encrypted += String.fromCharCode(rawAdCode.charCodeAt(i) ^ 42);
+    }
+    const payload = btoa(encrypted);
+    return jsonResponse({
+      status: 'ok',
+      payload
+    });
+  }
+
   // ── Route: /api/anime ──
   if (path === '/api/anime') {
     try {

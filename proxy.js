@@ -4,10 +4,23 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://zyrox.gt.tc',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+// Strips operational metadata (cf-ray, server) from responses
+function secureResponse(response) {
+  const newHeaders = new Headers(response.headers);
+  newHeaders.delete("cf-ray");
+  newHeaders.delete("server");
+  
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders
+  });
+}
 
 // Helper for OPTIONS request
 function handleOptions() {
@@ -68,21 +81,94 @@ async function supabaseFetch(path, env) {
   return res.json();
 }
 
-export default {
-  async fetch(request, env, ctx) {
-    // ── OPTIONS Preflight Handshake ──
-    if (request.method === 'OPTIONS') {
-      return handleOptions();
-    }
+async function handleRequest(request, env, ctx) {
+  // ── OPTIONS Preflight Handshake ──
+  if (request.method === 'OPTIONS') {
+    return handleOptions();
+  }
 
-    const urlParsed = new URL(request.url);
-    const path = urlParsed.pathname;
-    const searchParams = urlParsed.searchParams;
+  const urlParsed = new URL(request.url);
+  const path = urlParsed.pathname;
+  const searchParams = urlParsed.searchParams;
 
-    // ── Health Check ──
-    if (path === '/health' || path === '/api/health') {
-      return jsonResponse({ status: 'ok', worker: true, timestamp: new Date().toISOString() });
+  // ── Health Check ──
+  if (path === '/health' || path === '/api/health') {
+    return jsonResponse({ status: 'ok', worker: true, timestamp: new Date().toISOString() });
+  }
+
+  // ── Route: /api/anime ──
+  if (path === '/api/anime') {
+    try {
+      const supabaseUrl = env.SUPABASE_URL || SUPABASE_API_URL;
+      const key = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY || SUPABASE_KEY;
+      
+      const queryParams = new URLSearchParams(searchParams);
+      
+      if (queryParams.has('id')) {
+        const idVal = queryParams.get('id');
+        if (!idVal.includes('.')) {
+          queryParams.set('id', `eq.${idVal}`);
+        }
+      }
+      
+      if (!queryParams.has('select')) {
+        queryParams.set('select', 'id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url');
+      }
+
+      const supabaseQueryUrl = `${supabaseUrl}/anime_list?${queryParams.toString()}`;
+      const res = await fetch(supabaseQueryUrl, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`
+        }
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        return jsonResponse({ error: true, message: `Supabase error ${res.status}: ${text}` }, res.status);
+      }
+
+      const data = await res.json();
+      return jsonResponse(data);
+    } catch (err) {
+      return jsonResponse({ error: true, message: err.message }, 500);
     }
+  }
+
+  // ── Route: /api/list ──
+  if (path === '/api/list') {
+    try {
+      const supabaseUrl = env.SUPABASE_URL || SUPABASE_API_URL;
+      const key = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY || SUPABASE_KEY;
+      
+      const searchVal = searchParams.get('search') || searchParams.get('q') || '';
+      
+      const queryParams = new URLSearchParams();
+      queryParams.set('select', 'id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url');
+      if (searchVal) {
+        queryParams.set('title', `ilike.*${searchVal}*`);
+      }
+      queryParams.set('limit', '24');
+
+      const supabaseQueryUrl = `${supabaseUrl}/anime_list?${queryParams.toString()}`;
+      const res = await fetch(supabaseQueryUrl, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`
+        }
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        return jsonResponse({ error: true, message: `Supabase error ${res.status}: ${text}` }, res.status);
+      }
+
+      const data = await res.json();
+      return jsonResponse(data);
+    } catch (err) {
+      return jsonResponse({ error: true, message: err.message }, 500);
+    }
+  }
 
     // ── Trending Spotlight Endpoint ──
     if (path === '/api/trending/spotlight') {
@@ -298,5 +384,18 @@ export default {
       status: 404,
       headers: corsHeaders,
     });
-  },
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      const response = await handleRequest(request, env, ctx);
+      return secureResponse(response);
+    } catch (err) {
+      return secureResponse(new Response(`Internal Server Error: ${err.message}`, {
+        status: 500,
+        headers: corsHeaders
+      }));
+    }
+  }
 };

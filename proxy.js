@@ -98,7 +98,39 @@ async function handleRequest(request, env, ctx) {
 
   // ── Route: /api/ad ──
   if (path === '/api/ad') {
-    const rawAdCode = `<script async="async" data-cfasync="false" src="https://pl29627205.effectivecpmnetwork.com/c3bec2ae5a707c14264a13b0b8be6369/invoke.js"></script><div id="container-c3bec2ae5a707c14264a13b0b8be6369"></div>`;
+    const isMobile = searchParams.get('mobile') === 'true';
+    let rawAdCode = '';
+    if (isMobile) {
+      rawAdCode = `<div style="display:flex; flex-direction:column; align-items:center; gap:16px; margin:auto;">
+  <div style="width:300px; height:250px; background:rgba(0,0,0,0.2); display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:8px;">
+    <script type="text/javascript">
+      atOptions = {
+        'key' : 'f571a4ab7a29f5b903a47f5b2b39c11a',
+        'format' : 'iframe',
+        'height' : 250,
+        'width' : 300,
+        'params' : {}
+      };
+    </script>
+    <script type="text/javascript" src="https://www.highperformanceformat.com/f571a4ab7a29f5b903a47f5b2b39c11a/invoke.js"></script>
+  </div>
+  <div style="width:300px; height:250px; background:rgba(0,0,0,0.2); display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:8px;">
+    <script type="text/javascript">
+      atOptions = {
+        'key' : 'f571a4ab7a29f5b903a47f5b2b39c11a',
+        'format' : 'iframe',
+        'height' : 250,
+        'width' : 300,
+        'params' : {}
+      };
+    </script>
+    <script type="text/javascript" src="https://www.highperformanceformat.com/f571a4ab7a29f5b903a47f5b2b39c11a/invoke.js"></script>
+  </div>
+</div>`;
+    } else {
+      rawAdCode = `<script async="async" data-cfasync="false" src="https://pl29627205.effectivecpmnetwork.com/c3bec2ae5a707c14264a13b0b8be6369/invoke.js"></script><div id="container-c3bec2ae5a707c14264a13b0b8be6369"></div>`;
+    }
+
     let encrypted = '';
     for (let i = 0; i < rawAdCode.length; i++) {
       encrypted += String.fromCharCode(rawAdCode.charCodeAt(i) ^ 42);

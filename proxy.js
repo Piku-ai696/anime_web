@@ -1,13 +1,11 @@
 export default {
   async fetch(request, env, ctx) {
-    // Permissive Access Pipeline: Apply universal headers across all transaction contexts
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': '*',
     };
 
-    // Intercept OPTIONS preflight requests natively with an empty 200 response
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 200,
@@ -15,16 +13,13 @@ export default {
       });
     }
 
-    // Target Database Credentials Configuration
     const supabaseUrl = (env && env.SUPABASE_URL) || "https://ucgxzganknweqfucjqqw.supabase.co";
     const supabaseKey = (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.SUPABASE_KEY) || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY";
 
     const url = new URL(request.url);
 
-    // Optimized Endpoint Router '/api/home'
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        // Format selector criteria explicitly to handle slashed column parameters safely via double quotes
         const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type`;
         
         const tables = [
@@ -39,16 +34,11 @@ export default {
           { key: 'upcoming_anime', table: 'upcoming_anime', limit: 5 }
         ];
 
-        // Fetch records concurrently in parallel across all 9 custom dashboard tables
         const fetchPromises = tables.map(async (cfg) => {
           try {
             let queryUrl = `${supabaseUrl}/rest/v1/${cfg.table}?select=${encodeURIComponent(selectStr)}`;
-            if (cfg.order) {
-              queryUrl += `&order=${cfg.order}`;
-            }
-            if (cfg.limit) {
-              queryUrl += `&limit=${cfg.limit}`;
-            }
+            if (cfg.order) queryUrl += `&order=${cfg.order}`;
+            if (cfg.limit) queryUrl += `&limit=${cfg.limit}`;
 
             const res = await fetch(queryUrl, {
               method: 'GET',
@@ -59,15 +49,10 @@ export default {
               }
             });
 
-            if (!res.ok) {
-              throw new Error(`HTTP error ${res.status} fetching ${cfg.table}`);
-            }
-
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
             const data = await res.json();
-            const mappedData = Array.isArray(data) ? data.map(mapRecord) : [];
-            return { key: cfg.key, data: mappedData };
+            return { key: cfg.key, data: Array.isArray(data) ? data.map(mapRecord) : [] };
           } catch (err) {
-            console.error(`[Edge Worker] Error loading table ${cfg.table}:`, err);
             return { key: cfg.key, data: [] };
           }
         });
@@ -75,58 +60,32 @@ export default {
         const results = await Promise.all(fetchPromises);
         const responseData = {};
         for (const item of results) {
-          // Fallback any null values gracefully to default array objects
           responseData[item.key] = item.data || [];
         }
 
-        return new Response(JSON.stringify({
-          status: "success",
-          data: responseData
-        }), {
+        return new Response(JSON.stringify({ status: "success", data: responseData }), {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       } catch (err) {
-        return new Response(JSON.stringify({
-          status: "error",
-          message: err.message,
-          data: {
-            hero_slider: [], trending: [], popular: [], top_airing: [],
-            most_viewed_day: [], most_viewed_week: [], most_viewed_month: [],
-            latest_episodes: [], upcoming_anime: []
-          }
-        }), {
+        return new Response(JSON.stringify({ status: "error", message: err.message }), {
           status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
     }
 
-    // Optimized Endpoint Router '/api/anime'
     if (url.pathname === '/api/anime' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const slug = url.searchParams.get("slug");
-        if (!slug || slug.trim() === "") {
-          return new Response(JSON.stringify({
-            status: "error",
-            message: "Missing Slug"
-          }), {
+        if (!slug) {
+          return new Response(JSON.stringify({ status: "error", message: "Missing Slug" }), {
             status: 400,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
 
-        // Query directory table 'anime_list1' using .eq filter syntax to isolate the base row
-        const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type`;
+        const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type,keywords`;
         const detailUrl = `${supabaseUrl}/rest/v1/anime_list1?id=eq.${encodeURIComponent(slug)}&select=${encodeURIComponent(selectStr)}`;
         
         const detailRes = await fetch(detailUrl, {
@@ -138,75 +97,50 @@ export default {
           }
         });
 
-        if (!detailRes.ok) {
-          throw new Error(`Failed to query detail: ${detailRes.statusText}`);
-        }
-
         const list = await detailRes.json();
         if (!list || !Array.isArray(list) || list.length === 0) {
-          return new Response(JSON.stringify({
-            status: "error",
-            message: "Not Found"
-          }), {
+          return new Response(JSON.stringify({ status: "error", message: "Not Found" }), {
             status: 404,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
 
         const baseAnime = list[0];
         const mappedBaseAnime = mapRecord(baseAnime);
-        const baseId = baseAnime.id;
 
-        // Clean the text data, extract terms from the keyword block, and execute an aggregated logical 'or' statement
         const cleanTokens = (str) => {
           if (!str || typeof str !== 'string') return [];
-          const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
+          const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "season", "part", "movie"]);
           return str
             .toLowerCase()
             .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, " ")
             .split(/\s+/)
-            .map(t => t.trim())
             .filter(t => t.length > 2 && !fillers.has(t));
         };
 
-        const tokens = [
-          ...new Set([
-            ...cleanTokens(baseAnime.title),
-            ...cleanTokens(baseAnime.keywords)
-          ])
-        ];
-
-        let recommendations = [];
-        let recsUrl = `${supabaseUrl}/rest/v1/anime_list1?id=neq.${encodeURIComponent(baseId)}&select=${encodeURIComponent(selectStr)}`;
-
+        const tokens = [...new Set([...cleanTokens(baseAnime.title), ...cleanTokens(baseAnime.keywords)])];
         let orClauses = [];
         
-        // If genre exists, map genres to 'or' query conditions
         if (baseAnime.genre) {
-          const genres = typeof baseAnime.genre === 'string' 
-            ? baseAnime.genre.split(',').map(g => g.trim()) 
-            : (Array.isArray(baseAnime.genre) ? baseAnime.genre : []);
-          genres.forEach(genre => {
-            if (genre.length > 0) {
-              orClauses.push(`genre.ilike.%${encodeURIComponent(genre)}%`);
+          const genres = Array.isArray(baseAnime.genre) ? baseAnime.genre : (typeof baseAnime.genre === 'string' ? baseAnime.genre.split(',') : []);
+          genres.forEach(g => {
+            if (g && String(g).trim().length > 0) {
+              orClauses.push(`genre.ilike.%${encodeURIComponent(String(g).trim())}%`);
             }
           });
         }
 
-        // Add title and keyword clauses
-        for (const token of tokens.slice(0, 10)) {
+        for (const token of tokens.slice(0, 8)) {
           orClauses.push(`title.ilike.%${encodeURIComponent(token)}%`);
           orClauses.push(`keywords.ilike.%${encodeURIComponent(token)}%`);
         }
 
+        let recommendations = [];
+        let recsUrl = `${supabaseUrl}/rest/v1/anime_list1?id=neq.${encodeURIComponent(baseAnime.id)}&select=${encodeURIComponent(selectStr)}`;
         if (orClauses.length > 0) {
           recsUrl += `&or=(${orClauses.slice(0, 20).join(',')})`;
         }
-
-        recsUrl += `&limit=24`; // Return up to 24 relevant related titles while filtering out its own row ID
+        recsUrl += `&limit=24`;
 
         const recsRes = await fetch(recsUrl, {
           method: 'GET',
@@ -220,96 +154,45 @@ export default {
         if (recsRes.ok) {
           const rawRecs = await recsRes.json();
           if (Array.isArray(rawRecs)) {
-            const mappedRecs = rawRecs.map(mapRecord);
-            recommendations = shuffle(mappedRecs);
+            recommendations = rawRecs.map(mapRecord);
           }
         }
 
-        return new Response(JSON.stringify({
-          status: "success",
-          data: {
-            anime_details: mappedBaseAnime,
-            recommendations: recommendations
-          }
-        }), {
+        return new Response(JSON.stringify({ status: "success", data: { anime_details: mappedBaseAnime, recommendations } }), {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       } catch (err) {
-        return new Response(JSON.stringify({
-          status: "error",
-          message: err.message,
-          data: {
-            anime_details: null,
-            recommendations: []
-          }
-        }), {
+        return new Response(JSON.stringify({ status: "error", message: err.message, data: { anime_details: null, recommendations: [] } }), {
           status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
     }
 
-    // Default Fallback
-    return new Response(JSON.stringify({
-      status: "error",
-      message: "Route Not Found"
-    }), {
+    return new Response(JSON.stringify({ status: "error", message: "Route Not Found" }), {
       status: 404,
-      headers: {
-        'Content-Type': 'application/json',
-        ...corsHeaders
-      }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
 };
 
-/**
- * Maps a single database record from the new meta-table schema.
- * Wraps all mapping algorithms inside safe defensive null-fallbacks.
- */
 function mapRecord(x) {
   if (!x) return x;
+  let subVal = x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0;
+  let dubVal = x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0;
   return {
     id: x.id || "",
     title: x.title || "",
     description: x.description || "",
     poster: x.poster || "",
-    "s / ep / c": x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0,
-    "d / ep / c": x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0,
-    genre: x.genre || "",
+    "s / ep / c": subVal,
+    "d / ep / c": dubVal,
+    genre: x.genre || [],
     premiered: x.premiered || "",
     status: x.status || "",
     mal_score: x.mal_score !== null && x.mal_score !== undefined ? x.mal_score : "N/A",
     anikoto_id: x.anikoto_id || "",
-    type: x.type || "",
-
-    // Backward compatibility aliases:
-    slug: x.id || "",
-    poster_url: x.poster || "",
-    anime_status: x.status || "",
-    total_sub_eps: x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0,
-    total_dub_eps: x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0,
-    synopsis: x.description || "",
-    anime_type: x.type || "TV"
+    type: x.type || "TV"
   };
-}
-
-/**
- * Fisher-Yates array shuffle function
- */
-function shuffle(array) {
-  let currentIndex = array.length, randomIndex;
-  while (currentIndex !== 0) {
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-  }
-  return array;
 }

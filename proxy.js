@@ -106,19 +106,20 @@ export default {
           }
         });
 
-        // Compile distinct arrays named exactly as required by the syntax rules
-        const uniqueSlugs = Array.from(uniqueSlugsSet).filter(Boolean);
-        const uniqueIds = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
+        // Compile distinct arrays matching required naming conventions
+        const slugList = Array.from(uniqueSlugsSet).filter(Boolean);
+        const idList = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
 
         let metaRows = [];
 
-        // Step 3: Perform ONE cross-table bulk batch query using the compiled filters
-        if (uniqueSlugs.length > 0 || uniqueIds.length > 0) {
-          const safeSlugs = uniqueSlugs.length > 0 ? uniqueSlugs : ['__dummy_slug__'];
-          const safeIds = uniqueIds.length > 0 ? uniqueIds : [-1];
+        // Step 3: Perform ONE cross-table bulk batch query using double-quoted slug escaping
+        if (slugList.length > 0 || idList.length > 0) {
+          const safeSlugs = slugList.length > 0 ? slugList : ['__dummy_slug__'];
+          const safeIds = idList.length > 0 ? idList : [-1];
 
-          // PostgREST query syntax exactly matching user's string specification
-          const selectQuery = `or=(id.in.(${safeSlugs.join(',')}),anikoto_id.in.(${safeIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+          // Wrap every single text slug in double quotes inside the 'in' filter block
+          // to prevent text hyphen syntax errors in Supabase.
+          const selectQuery = `or=(id.in.(${safeSlugs.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${safeIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
           const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
           const metaRes = await fetch(metaUrl, { headers });
 
@@ -135,7 +136,7 @@ export default {
 
         if (Array.isArray(metaRows)) {
           metaRows.forEach(item => {
-            const slug = item.slug || item.id;
+            const slug = item.id || item.slug;
             if (slug) {
               metaBySlug.set(slug, item);
             }
@@ -145,7 +146,7 @@ export default {
           });
         }
 
-        // Step 4: Order the metadata arrays sequentially to match original layout placements (rank '1' to '12' etc.)
+        // Step 4: Order the metadata arrays sequentially to match original layout placements
         const getSortedContainer = (columnName) => {
           return trendingRows
             .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '')

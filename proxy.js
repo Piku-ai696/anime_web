@@ -89,6 +89,7 @@ export default {
 
         categories.forEach(col => {
           trendingRows.forEach(row => {
+            // Explicit string bracket notation to access hyphenated fields safely
             const rankVal = row[col];
             if (rankVal !== null && rankVal !== undefined && rankVal !== '' && row.slug) {
               uniqueSlugsSet.add(row.slug);
@@ -106,20 +107,18 @@ export default {
           }
         });
 
-        // Compile distinct arrays matching required naming conventions
-        const slugList = Array.from(uniqueSlugsSet).filter(Boolean);
-        const idList = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
+        // Compile distinct arrays matching exactly required naming conventions
+        const uniqueSlugsList = Array.from(uniqueSlugsSet).filter(Boolean);
+        const uniqueIdsList = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
+
+        const uniqueSlugs = uniqueSlugsList.length > 0 ? uniqueSlugsList : ['__dummy_slug__'];
+        const uniqueIds = uniqueIdsList.length > 0 ? uniqueIdsList : [-1];
 
         let metaRows = [];
 
-        // Step 3: Perform ONE cross-table bulk batch query using double-quoted slug escaping
-        if (slugList.length > 0 || idList.length > 0) {
-          const safeSlugs = slugList.length > 0 ? slugList : ['__dummy_slug__'];
-          const safeIds = idList.length > 0 ? idList : [-1];
-
-          // Wrap every single text slug in double quotes inside the 'in' filter block
-          // to prevent text hyphen syntax errors in Supabase.
-          const selectQuery = `or=(id.in.(${safeSlugs.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${safeIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+        // Step 3: Perform ONE cross-table bulk batch query using double-quoted slug escaping and matching variables
+        if (uniqueSlugsList.length > 0 || uniqueIdsList.length > 0) {
+          const selectQuery = `or=(id.in.(${uniqueSlugs.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${uniqueIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
           const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
           const metaRes = await fetch(metaUrl, { headers });
 
@@ -146,7 +145,7 @@ export default {
           });
         }
 
-        // Step 4: Order the metadata arrays sequentially to match original layout placements
+        // Step 4: Order the metadata arrays sequentially to match original layout placements (using bracket notation)
         const getSortedContainer = (columnName) => {
           return trendingRows
             .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '')

@@ -89,7 +89,7 @@ export default {
             row['most-viewed-month']
           ].some(val => val !== null && val !== undefined && val !== '');
 
-          if (hasCategory && row.slug) {
+          if (row.slug && typeof row.slug === 'string') {
             uniqueSlugs.add(row.slug);
           }
 

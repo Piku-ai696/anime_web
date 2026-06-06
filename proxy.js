@@ -5,7 +5,6 @@
 
 function isValidNumericRank(val) {
   if (val === null || val === undefined) return false;
-  // Stringify the property value, trim any white spaces, and check if it matches a digit sequence pattern
   const clean = String(val).trim();
   return /^\d+$/.test(clean);
 }
@@ -52,78 +51,92 @@ export default {
           throw new Error('Response from anime_list_trending is not an array.');
         }
 
-        // Step 2: Extract all target slugs and anikoto_id elements into sets
+        // Step 2: Extract all target slugs and anikoto_id elements into sets using separate routines
         const uniqueSlugsSet = new Set();
         const uniqueIdsSet = new Set();
 
-        const categories = [
-          'hero_slider',
-          'trending',
-          'popular',
-          'top_airing',
-          'most-viewed-day',
-          'most-viewed-week',
-          'most-viewed-month'
-        ];
+        // Independent evaluation routines per category to completely fix the row skipper bug
+        // hero_slider
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['hero_slider'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // trending
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['trending'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // popular
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['popular'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // top_airing
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['top_airing'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // most-viewed-day
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['most-viewed-day'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // most-viewed-week
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['most-viewed-week'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
+        // most-viewed-month
+        for (const row of trendingRows) {
+          if (row.slug && isValidNumericRank(row['most-viewed-month'])) {
+            uniqueSlugsSet.add(row.slug);
+          }
+        }
 
-        // Explicit iteration over every row to gather valid slugs by trimmed regex checks
-        categories.forEach(col => {
-          trendingRows.forEach(row => {
-            const rankVal = row[col];
-            if (row.slug && isValidNumericRank(rankVal)) {
-              uniqueSlugsSet.add(row.slug);
-            }
-          });
-        });
-
-        // Scan the rows to locate the non-null cells containing latest_episodes and upcoming_anime arrays
+        // Parse upcoming_anime and latest_episodes from JSONB columns
         let latestEpisodesIds = [];
         let upcomingAnimeIds = [];
 
         for (const row of trendingRows) {
-          // Parse upcoming_anime as a flat array of numbers
+          // Parse upcoming_anime as a raw array of primitive numbers
           if (row.upcoming_anime) {
-            const cell = row.upcoming_anime;
-            const arr = Array.isArray(cell) ? cell : [cell];
-            upcomingAnimeIds = arr.map(item => Number(item)).filter(id => !isNaN(id));
-            if (upcomingAnimeIds.length > 0) {
-              break;
+            const arr = Array.isArray(row.upcoming_anime) ? row.upcoming_anime : [row.upcoming_anime];
+            const parsed = arr.map(item => Number(item)).filter(id => !isNaN(id));
+            if (parsed.length > 0) {
+              upcomingAnimeIds = parsed;
+              parsed.forEach(id => uniqueIdsSet.add(id));
             }
           }
-        }
-
-        for (const row of trendingRows) {
-          // Parse latest_episodes as an array of objects, pulling out the nested object 'id' property values and converting them to numbers
+          // Parse latest_episodes as an array of nested objects, extracting item.id and converting to a Number
           if (row.latest_episodes) {
-            const cell = row.latest_episodes;
-            const arr = Array.isArray(cell) ? cell : [cell];
-            latestEpisodesIds = arr.map(item => {
+            const arr = Array.isArray(row.latest_episodes) ? row.latest_episodes : [row.latest_episodes];
+            const parsed = arr.map(item => {
               if (item && typeof item === 'object') {
                 return Number(item.id);
               }
               return Number(item);
             }).filter(id => !isNaN(id));
-            if (latestEpisodesIds.length > 0) {
-              break;
+            if (parsed.length > 0) {
+              latestEpisodesIds = parsed;
+              parsed.forEach(id => uniqueIdsSet.add(id));
             }
           }
         }
 
-        // Compile all unique target slugs and anikoto_id numbers into separate filter pools
-        latestEpisodesIds.forEach(id => uniqueIdsSet.add(id));
-        upcomingAnimeIds.forEach(id => uniqueIdsSet.add(id));
-
-        const uniqueSlugsList = Array.from(uniqueSlugsSet).filter(Boolean);
-        const uniqueIdsList = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
-
-        const uniqueSlugs = uniqueSlugsList.length > 0 ? uniqueSlugsList : ['__dummy_slug__'];
-        const uniqueIds = uniqueIdsList.length > 0 ? uniqueIdsList : [-1];
-
         let metaRows = [];
 
-        // Step 3: Perform ONE cross-table bulk fetch back to 'anime_list1' using the exact syntax
-        if (uniqueSlugsList.length > 0 || uniqueIdsList.length > 0) {
-          const selectQuery = `or=(id.in.(${uniqueSlugs.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${uniqueIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+        // Step 3: Execute exactly ONE cross-table bulk fetch call back to 'anime_list1' using the exact syntax
+        if (uniqueSlugsSet.size > 0 || uniqueIdsSet.size > 0) {
+          const slugsArray = Array.from(uniqueSlugsSet).length > 0 ? Array.from(uniqueSlugsSet) : ['__dummy_slug__'];
+          const idsArray = Array.from(uniqueIdsSet).length > 0 ? Array.from(uniqueIdsSet) : [-1];
+
+          const selectQuery = `or=(id.in.(${slugsArray.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${idsArray.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
           const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
           const metaRes = await fetch(metaUrl, { headers });
 

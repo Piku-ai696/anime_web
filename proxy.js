@@ -1,238 +1,324 @@
-/**
- * XMAX Platform — Unified Cloudflare Worker Data Engine
- * ES Module Router: Homepage batches, Global library search, Dynamic detail & keyword recommendations
- */
-
-function mapItem(item) {
-  if (!item) return null;
-  return {
-    id: item.id || item.slug || '',
-    title: item.title || '',
-    description: item.description || '',
-    poster: item.poster || '',
-    's/ep/c': item['s/ep/c'] !== undefined && item['s/ep/c'] !== null ? item['s/ep/c'] : 0,
-    'd/ep/c': item['d/ep/c'] !== undefined && item['d/ep/c'] !== null ? item['d/ep/c'] : 0,
-    status: item.status || item.anime_status || '',
-    type: item.type || '',
-    jp_titles: item.jp_titles || '',
-    keywords: item.keywords || '',
-    aired: item.aired || '',
-    premiered: item.premiered || '',
-    duration: item.duration || '',
-    mal_score: item.mal_score || '',
-    studios: item.studios || '',
-    genre: item.genre || '',
-    anikoto_id: item.anikoto_id !== undefined ? item.anikoto_id : null
-  };
-}
-
 export default {
   async fetch(request, env, ctx) {
-    // Global CORS Headers
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };
 
-    // 1. Preflight Configuration: Intercept HTTP OPTIONS requests instantly
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 200, headers: corsHeaders });
+      return new Response(null, {
+        status: 200,
+        headers: corsHeaders,
+      });
     }
 
     const url = new URL(request.url);
+    const supabaseUrl = env.SUPABASE_URL;
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // 2. Unified Path Routing Engine: Intercept GET requests at pathname '/api/home'
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(JSON.stringify({
+        status: "error",
+        message: "Missing Configuration"
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
     if (url.pathname === '/api/home' && request.method === 'GET') {
-      const supabaseUrl = 'https://ucgxzganknweqfucjqqw.supabase.co';
-      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY';
-
-      const headers = {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
-      };
-
-      const searchQuery = url.searchParams.get('search');
-      const animeSlug = url.searchParams.get('anime_slug');
-
       try {
-        // ──────────────────────────────────────────────────────────
-        // 3. Execution Track Alpha — Global Library Text Search
-        // ──────────────────────────────────────────────────────────
-        if (searchQuery) {
-          const query = encodeURIComponent(searchQuery.trim());
-          const searchUrl = `${supabaseUrl}/rest/v1/anime_list1?or=(title.ilike.*${query}*,jp_titles.ilike.*${query}*,description.ilike.*${query}*)&limit=24`;
-
-          const searchRes = await fetch(searchUrl, { headers });
-          let searchResults = [];
-          if (searchRes.ok) {
-            const raw = await searchRes.json();
-            searchResults = (raw || []).map(mapItem).filter(Boolean);
+        const collectionsUrl = `${supabaseUrl}/rest/v1/site_collections?select=*`;
+        const collectionsRes = await fetch(collectionsUrl, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
           }
-
-          return new Response(JSON.stringify({
-            status: 'success',
-            data: searchResults
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // ──────────────────────────────────────────────────────────
-        // 4. Execution Track Beta — Dynamic Details & Keyword Recommendations
-        // ──────────────────────────────────────────────────────────
-        if (animeSlug) {
-          // Step A: Fetch the complete record row for that item directly
-          const primaryRes = await fetch(
-            `${supabaseUrl}/rest/v1/anime_list1?id=eq.${encodeURIComponent(animeSlug)}`,
-            { headers }
-          );
-          if (!primaryRes.ok) {
-            throw new Error(`Failed to fetch title details: ${primaryRes.status}`);
-          }
-          const primaryData = await primaryRes.json();
-          const primaryRow = primaryData && primaryData.length > 0 ? mapItem(primaryData[0]) : null;
-
-          if (!primaryRow) {
-            return new Response(JSON.stringify({
-              status: 'success',
-              data: { anime_details: null, recommendations: [] }
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          // Step B: Extract string components from keywords, genre, and title columns
-          const keywordSource = (primaryRow.keywords || '') + ' ' + (primaryRow.genre || '') + ' ' + (primaryRow.title || '');
-          const tokens = keywordSource
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, ' ')
-            .split(/\s+/)
-            .filter(w => w.length > 3);
-          const uniqueTokens = Array.from(new Set(tokens)).slice(0, 5);
-
-          // Step C: Execute a secondary library cross-search using PostgREST text matching
-          let relatedRows = [];
-          if (uniqueTokens.length > 0) {
-            const orFilter = 'or=(' + uniqueTokens.map(t => `keywords.ilike.*${t}*,genre.ilike.*${t}*`).join(',') + ')';
-            const crossSearchUrl = `${supabaseUrl}/rest/v1/anime_list1?${orFilter}&limit=40`;
-            const crossRes = await fetch(crossSearchUrl, { headers });
-            if (crossRes.ok) {
-              const crossData = await crossRes.json();
-              relatedRows = (crossData || [])
-                .map(mapItem)
-                .filter(Boolean)
-                .filter(i => i.id !== primaryRow.id);
-            }
-          }
-
-          // Backfill if fewer than 6 recommendations
-          if (relatedRows.length < 6) {
-            const fallbackRes = await fetch(`${supabaseUrl}/rest/v1/anime_list1?limit=30`, { headers });
-            if (fallbackRes.ok) {
-              const fallbackData = await fallbackRes.json();
-              const extras = (fallbackData || [])
-                .map(mapItem)
-                .filter(Boolean)
-                .filter(i => i.id !== primaryRow.id && !relatedRows.some(r => r.id === i.id));
-              relatedRows = [...relatedRows, ...extras].slice(0, 20);
-            }
-          }
-
-          return new Response(JSON.stringify({
-            status: 'success',
-            data: {
-              anime_details: primaryRow,
-              recommendations: relatedRows
-            }
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // ──────────────────────────────────────────────────────────
-        // 5. Execution Track Gamma — Standard Homepage Generation
-        // ──────────────────────────────────────────────────────────
-        const endpoints = [
-          'hero_slider?select=*&order=rank_number.asc',
-          'trending?select=*&order=rank_number.asc',
-          'popular?select=*&order=rank_number.asc',
-          'top_airing?select=*&order=rank_number.asc',
-          'most_viewed_day?select=*&order=rank_number.asc',
-          'most_viewed_week?select=*&order=rank_number.asc',
-          'most_viewed_month?select=*&order=rank_number.asc',
-          'latest_episodes?select=*&limit=5',
-          'upcoming_anime?select=*&limit=5'
-        ];
-
-        const fetchPromises = endpoints.map(endpoint =>
-          fetch(`${supabaseUrl}/rest/v1/${endpoint}`, { headers })
-            .then(async res => {
-              if (!res.ok) return [];
-              return res.json();
-            })
-            .catch(() => [])
-        );
-
-        const [
-          hero_slider_raw,
-          trending_raw,
-          popular_raw,
-          top_airing_raw,
-          most_viewed_day_raw,
-          most_viewed_week_raw,
-          most_viewed_month_raw,
-          latest_episodes_raw,
-          upcoming_anime_raw
-        ] = await Promise.all(fetchPromises);
-
-        const hero_slider = (hero_slider_raw || []).map(mapItem).filter(Boolean);
-        const trending = (trending_raw || []).map(mapItem).filter(Boolean);
-        const popular = (popular_raw || []).map(mapItem).filter(Boolean);
-        const top_airing = (top_airing_raw || []).map(mapItem).filter(Boolean);
-        const most_viewed_day = (most_viewed_day_raw || []).map(mapItem).filter(Boolean);
-        const most_viewed_week = (most_viewed_week_raw || []).map(mapItem).filter(Boolean);
-        const most_viewed_month = (most_viewed_month_raw || []).map(mapItem).filter(Boolean);
-        const latest_episodes = (latest_episodes_raw || []).map(mapItem).filter(Boolean).slice(0, 5);
-        const upcoming_anime = (upcoming_anime_raw || []).map(mapItem).filter(Boolean).slice(0, 5);
-
-        return new Response(JSON.stringify({
-          status: 'success',
-          data: {
-            hero_slider, trending, popular, top_airing,
-            latest_episodes, upcoming_anime,
-            most_viewed_day, most_viewed_week, most_viewed_month
-          }
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
-      } catch (error) {
-        // Global try/catch safeguard
+        if (!collectionsRes.ok) {
+          throw new Error("Collections Failed");
+        }
+
+        const collections = await collectionsRes.json();
+        const slugsSet = new Set();
+        const idsSet = new Set();
+
+        if (Array.isArray(collections)) {
+          for (const c of collections) {
+            if (c) {
+              const colSlugs = extractArrayValues(c.anime_slug);
+              const colIds = extractArrayValues(c.anime_ids);
+              for (const slug of colSlugs) {
+                slugsSet.add(slug);
+              }
+              for (const id of colIds) {
+                idsSet.add(id);
+              }
+            }
+          }
+        }
+
+        const uniqueSlugs = Array.from(slugsSet);
+        const uniqueIds = Array.from(idsSet);
+        let animeMasterList = [];
+
+        if (uniqueSlugs.length > 0 || uniqueIds.length > 0) {
+          let filter = '';
+          if (uniqueSlugs.length > 0 && uniqueIds.length > 0) {
+            filter = `&or=(slug.in.("${uniqueSlugs.join('","')}"),id.in.(${uniqueIds.join(',')}))`;
+          } else if (uniqueSlugs.length > 0) {
+            filter = `&slug=in.("${uniqueSlugs.join('","')}")`;
+          } else if (uniqueIds.length > 0) {
+            filter = `&id=in.(${uniqueIds.join(',')})`;
+          }
+
+          const masterUrl = `${supabaseUrl}/rest/v1/anime_master?select=id,title:title_en,slug,poster_url,banner_url,anime_type,anime_status,total_sub_eps,total_dub_eps,synopsis${filter}`;
+          const masterRes = await fetch(masterUrl, {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (masterRes.ok) {
+            animeMasterList = await masterRes.json();
+          }
+        }
+
+        const responseData = {
+          hero_slider: [],
+          trending: [],
+          popular: [],
+          top_airing: [],
+          recent_updates: [],
+          upcoming_anime: [],
+          'most-viewed-day': [],
+          'most-viewed-week': [],
+          'most-viewed-month': []
+        };
+
+        const animeBySlug = new Map();
+        const animeById = new Map();
+
+        if (Array.isArray(animeMasterList)) {
+          for (const item of animeMasterList) {
+            if (item) {
+              if (item.slug) {
+                animeBySlug.set(String(item.slug).trim().toLowerCase(), item);
+              }
+              if (item.id) {
+                animeById.set(String(item.id).trim().toLowerCase(), item);
+              }
+            }
+          }
+        }
+
+        if (Array.isArray(collections)) {
+          for (const col of collections) {
+            if (col && col.collection_key) {
+              const key = col.collection_key;
+              if (responseData.hasOwnProperty(key)) {
+                if (key === 'hero_slider' || key === 'trending' || key === 'popular' || key === 'top_airing' || key.startsWith('most-viewed') || key.startsWith('most_viewed')) {
+                  const colSlugs = extractArrayValues(col.anime_slug);
+                  responseData[key] = mapCollection(colSlugs, animeBySlug);
+                } else if (key === 'recent_updates' || key === 'upcoming_anime') {
+                  const colIds = extractArrayValues(col.anime_ids);
+                  responseData[key] = mapCollection(colIds, animeById);
+                }
+              }
+            }
+          }
+        }
+
         return new Response(JSON.stringify({
-          status: 'success',
-          data: {
-            hero_slider: [], trending: [], popular: [], top_airing: [],
-            latest_episodes: [], upcoming_anime: [],
-            most_viewed_day: [], most_viewed_week: [], most_viewed_month: []
-          },
-          error: error.message
+          status: "success",
+          data: responseData
         }), {
           status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          status: "error",
+          message: err.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
         });
       }
     }
 
-    // Default 404 Route
-    return new Response(JSON.stringify({ error: 'Not Found' }), {
+    else if (url.pathname === '/api/anime' && request.method === 'GET') {
+      try {
+        const slug = url.searchParams.get("slug");
+        if (!slug || slug.trim() === "") {
+          return new Response(JSON.stringify({
+            status: "error",
+            message: "Missing Slug"
+          }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        const selectStr = 'select=id,title:title_en,slug,poster_url,banner_url,anime_type,anime_status,total_sub_eps,total_dub_eps,synopsis';
+        const animeUrl = `${supabaseUrl}/rest/v1/anime_master?${selectStr}&slug=eq.${slug}`;
+        const animeRes = await fetch(animeUrl, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!animeRes.ok) {
+          throw new Error("Details Failed");
+        }
+
+        const list = await animeRes.json();
+        if (list.length === 0) {
+          return new Response(JSON.stringify({
+            status: "error",
+            message: "Not Found"
+          }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        const baseAnime = list[0];
+        let recommendations = [];
+
+        const recsUrl = `${supabaseUrl}/rest/v1/anime_master?${selectStr}&id=neq.${baseAnime.id}&or=(anime_type.eq.${encodeURIComponent(baseAnime.anime_type || 'TV')},anime_status.eq.${encodeURIComponent(baseAnime.anime_status || 'Finished Airing')})&limit=24`;
+        const recsRes = await fetch(recsUrl, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (recsRes.ok) {
+          const rawRecs = await recsRes.json();
+          if (Array.isArray(rawRecs)) {
+            recommendations = shuffle(rawRecs);
+          }
+        }
+
+        return new Response(JSON.stringify({
+          status: "success",
+          data: {
+            anime_details: baseAnime,
+            recommendations: recommendations
+          }
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          status: "error",
+          message: err.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({
+      status: "error",
+      message: "Not Found"
+    }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
 };
+
+function shuffle(array) {
+  let currentIndex = array.length, randomIndex;
+  while (currentIndex !== 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+  return array;
+}
+
+function extractArrayValues(val) {
+  if (val === null || val === undefined) return [];
+  let arr = [];
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          arr = parsed;
+        } else {
+          arr = [parsed];
+        }
+      } catch (e) {
+        arr = trimmed.split(',').map(s => s.trim());
+      }
+    } else {
+      arr = trimmed.split(',').map(s => s.trim());
+    }
+  } else {
+    arr = [val];
+  }
+  return arr
+    .map(x => (x === null || x === undefined) ? '' : String(x).trim())
+    .filter(x => x.length > 0);
+}
+
+function mapCollection(keysList, lookupMap) {
+  if (!Array.isArray(keysList) || !(lookupMap instanceof Map)) return [];
+  const mapped = [];
+  for (const key of keysList) {
+    try {
+      if (key === null || key === undefined) continue;
+      const stringKey = String(key).trim().toLowerCase();
+      if (lookupMap.has(stringKey)) {
+        const match = lookupMap.get(stringKey);
+        if (match) {
+          mapped.push(match);
+        }
+      }
+    } catch (err) {
+    }
+  }
+  return mapped;
+}

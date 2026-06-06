@@ -87,23 +87,34 @@ export default {
           'most-viewed-month'
         ];
 
+        // Explicit iteration over every row to gather valid slugs by specific bracket keys
         categories.forEach(col => {
           trendingRows.forEach(row => {
-            // Explicit string bracket notation to access hyphenated fields safely
             const rankVal = row[col];
-            if (rankVal !== null && rankVal !== undefined && rankVal !== '' && row.slug) {
+            if (rankVal !== null && rankVal !== undefined && rankVal !== '' && !isNaN(rankVal) && row.slug) {
               uniqueSlugsSet.add(row.slug);
             }
           });
         });
 
-        // Extract anikoto_id from latest_episodes and upcoming_anime
+        // Scan rows to locate the one single cell in the entire table containing the JSONB data arrays
+        let latestEpisodesIds = [];
+        let upcomingAnimeIds = [];
+
         trendingRows.forEach(row => {
           if (row.latest_episodes) {
-            extractAnikotoIds(row.latest_episodes).forEach(id => uniqueIdsSet.add(id));
+            const ids = extractAnikotoIds(row.latest_episodes);
+            if (ids.length > 0) {
+              latestEpisodesIds = ids;
+              ids.forEach(id => uniqueIdsSet.add(id));
+            }
           }
           if (row.upcoming_anime) {
-            extractAnikotoIds(row.upcoming_anime).forEach(id => uniqueIdsSet.add(id));
+            const ids = extractAnikotoIds(row.upcoming_anime);
+            if (ids.length > 0) {
+              upcomingAnimeIds = ids;
+              ids.forEach(id => uniqueIdsSet.add(id));
+            }
           }
         });
 
@@ -148,7 +159,7 @@ export default {
         // Step 4: Order the metadata arrays sequentially to match original layout placements (using bracket notation)
         const getSortedContainer = (columnName) => {
           return trendingRows
-            .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '')
+            .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '' && !isNaN(r[columnName]))
             .sort((a, b) => parseInt(a[columnName]) - parseInt(b[columnName]))
             .map(r => metaBySlug.get(r.slug))
             .filter(Boolean);
@@ -161,25 +172,6 @@ export default {
         const most_viewed_day = getSortedContainer('most-viewed-day');
         const most_viewed_week = getSortedContainer('most-viewed-week');
         const most_viewed_month = getSortedContainer('most-viewed-month');
-
-        // Extract latest_episodes and upcoming_anime in their original list order
-        let latestEpisodesIds = [];
-        let upcomingAnimeIds = [];
-
-        for (const r of trendingRows) {
-          if (r.latest_episodes) {
-            const ids = extractAnikotoIds(r.latest_episodes);
-            if (ids.length > 0 && latestEpisodesIds.length === 0) {
-              latestEpisodesIds = ids;
-            }
-          }
-          if (r.upcoming_anime) {
-            const ids = extractAnikotoIds(r.upcoming_anime);
-            if (ids.length > 0 && upcomingAnimeIds.length === 0) {
-              upcomingAnimeIds = ids;
-            }
-          }
-        }
 
         const latest_episodes = latestEpisodesIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
         const upcoming_anime = upcomingAnimeIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);

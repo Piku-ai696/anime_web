@@ -62,7 +62,7 @@ export default {
           'Content-Type': 'application/json'
         };
 
-        // Step A: Fetch all rows from 'anime_list_trending' in a single bulk request
+        // Step 1: Fetch all rows from 'anime_list_trending' in a single bulk request
         const trendingRes = await fetch(`${supabaseUrl}/rest/v1/anime_list_trending?select=*`, { headers });
         if (!trendingRes.ok) {
           throw new Error(`Failed to fetch trending list: ${trendingRes.status} ${await trendingRes.text()}`);
@@ -73,50 +73,53 @@ export default {
           throw new Error('Response from anime_list_trending is not an array.');
         }
 
-        // Step B: Extract all target slugs and anikoto_id elements into globally unique arrays
-        const uniqueSlugs = new Set();
-        const uniqueIds = new Set();
+        // Step 2: Extract all target slugs and anikoto_id elements into sets
+        const uniqueSlugsSet = new Set();
+        const uniqueIdsSet = new Set();
 
+        const categories = [
+          'hero_slider',
+          'trending',
+          'popular',
+          'top_airing',
+          'most-viewed-day',
+          'most-viewed-week',
+          'most-viewed-month'
+        ];
+
+        categories.forEach(col => {
+          trendingRows.forEach(row => {
+            const rankVal = row[col];
+            if (rankVal !== null && rankVal !== undefined && rankVal !== '' && row.slug) {
+              uniqueSlugsSet.add(row.slug);
+            }
+          });
+        });
+
+        // Extract anikoto_id from latest_episodes and upcoming_anime
         trendingRows.forEach(row => {
-          // Check columns: hero_slider, trending, popular, top_airing, most-viewed-day, most-viewed-week, most-viewed-month
-          const hasCategory = [
-            row.hero_slider,
-            row.trending,
-            row.popular,
-            row.top_airing,
-            row['most-viewed-day'],
-            row['most-viewed-week'],
-            row['most-viewed-month']
-          ].some(val => val !== null && val !== undefined && val !== '');
-
-          if (row.slug && typeof row.slug === 'string') {
-            uniqueSlugs.add(row.slug);
-          }
-
-          // Extract anikoto_id elements found inside the latest_episodes and upcoming_anime JSONB lists
           if (row.latest_episodes) {
-            extractAnikotoIds(row.latest_episodes).forEach(id => uniqueIds.add(id));
+            extractAnikotoIds(row.latest_episodes).forEach(id => uniqueIdsSet.add(id));
           }
-
           if (row.upcoming_anime) {
-            extractAnikotoIds(row.upcoming_anime).forEach(id => uniqueIds.add(id));
+            extractAnikotoIds(row.upcoming_anime).forEach(id => uniqueIdsSet.add(id));
           }
         });
 
-        const slugList = Array.from(uniqueSlugs).filter(Boolean);
-        const idList = Array.from(uniqueIds).filter(id => id !== null && id !== undefined && !isNaN(id));
+        // Compile distinct arrays named exactly as required by the syntax rules
+        const uniqueSlugs = Array.from(uniqueSlugsSet).filter(Boolean);
+        const uniqueIds = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
 
         let metaRows = [];
 
-        // Step C: Perform ONE cross-table bulk batch query to 'anime_list1' matching elements by slug OR anikoto_id
-        if (slugList.length > 0 || idList.length > 0) {
-          const safeSlugs = slugList.length > 0 ? slugList : ['__dummy_slug__'];
-          const safeIds = idList.length > 0 ? idList : [-1];
+        // Step 3: Perform ONE cross-table bulk batch query using the compiled filters
+        if (uniqueSlugs.length > 0 || uniqueIds.length > 0) {
+          const safeSlugs = uniqueSlugs.length > 0 ? uniqueSlugs : ['__dummy_slug__'];
+          const safeIds = uniqueIds.length > 0 ? uniqueIds : [-1];
 
-          const orQuery = `or=(id.in.(${safeSlugs.join(',')}),anikoto_id.in.(${safeIds.join(',')}))`;
-          const selectQuery = `select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
-
-          const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${orQuery}&${selectQuery}`;
+          // PostgREST query syntax exactly matching user's string specification
+          const selectQuery = `or=(id.in.(${safeSlugs.join(',')}),anikoto_id.in.(${safeIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+          const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
           const metaRes = await fetch(metaUrl, { headers });
 
           if (metaRes.ok) {
@@ -142,7 +145,7 @@ export default {
           });
         }
 
-        // Step D: Order the metadata arrays sequentially to match their original row layout placements (rank '1' to '9' etc.)
+        // Step 4: Order the metadata arrays sequentially to match original layout placements (rank '1' to '12' etc.)
         const getSortedContainer = (columnName) => {
           return trendingRows
             .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '')
@@ -181,7 +184,7 @@ export default {
         const latest_episodes = latestEpisodesIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
         const upcoming_anime = upcomingAnimeIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
 
-        // Step E: Package the payload cleanly into separate tracking segments matching the home containers exactly
+        // Step 5: Package the payload cleanly matching home sections
         const responseData = {
           status: 'success',
           data: {

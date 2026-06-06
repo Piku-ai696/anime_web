@@ -24,8 +24,8 @@ export default {
     // Path Route A: '/api/home' (Dashboard Delivery Engine)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        // PostgREST select parameter string explicitly handling slashed columns via double quotes
-        const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type`;
+        // Ensure the core table fetches use 'select=*' strings to retrieve these columns natively without structural omission
+        const selectStr = `*`;
         
         const tables = [
           { key: 'hero_slider', table: 'hero_slider', order: 'rank_number.asc', limit: 10 },
@@ -64,8 +64,8 @@ export default {
             }
 
             const data = await res.json();
-            // Wrap result parsing inside defensive fallbacks
-            const mappedData = Array.isArray(data) ? data.map(mapRecord) : [];
+            // Wrap result parsing inside defensive fallbacks and map items
+            const mappedData = Array.isArray(data) ? data.map(mapItem).filter(x => x !== null) : [];
             return { key: cfg.key, data: mappedData };
           } catch (err) {
             console.error(`[Edge Worker] Error loading table ${cfg.table}:`, err);
@@ -125,8 +125,8 @@ export default {
           });
         }
 
-        // Isolate the base anime entry from the main 'anime_list1' database table
-        const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type`;
+        // Isolate the base anime entry using 'select=*' to pull all fields natively
+        const selectStr = `*`;
         const detailUrl = `${supabaseUrl}/rest/v1/anime_list1?id=eq.${encodeURIComponent(slug)}&select=${encodeURIComponent(selectStr)}`;
         
         const detailRes = await fetch(detailUrl, {
@@ -157,7 +157,7 @@ export default {
         }
 
         const baseAnime = list[0];
-        const mappedBaseAnime = mapRecord(baseAnime);
+        const mappedBaseAnime = mapItem(baseAnime);
         const baseId = baseAnime.id;
 
         // Tokenize title and keyword parameters, filtering out filler words
@@ -233,7 +233,7 @@ export default {
         if (recsRes.ok) {
           const rawRecs = await recsRes.json();
           if (Array.isArray(rawRecs)) {
-            const mappedRecs = rawRecs.map(mapRecord);
+            const mappedRecs = rawRecs.map(mapItem).filter(x => x !== null);
             recommendations = shuffle(mappedRecs);
           }
         }
@@ -284,37 +284,40 @@ export default {
 };
 
 /**
- * Maps a single database record from the new meta-table schema.
- * Wraps all mapping algorithms inside safe defensive null-fallbacks.
+ * REPAIRED BACKEND MAPPING UTILITY LAYER
  */
-function mapRecord(x) {
-  if (!x) return x;
-  let subVal = x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0;
-  let dubVal = x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0;
-  return {
-    id: x.id || "",
-    title: x.title || "",
-    description: x.description || "",
-    poster: x.poster || "",
-    "s / ep / c": subVal,
-    "d / ep / c": dubVal,
-    "s/ep/c": subVal,
-    "d/ep/c": dubVal,
-    total_sub_eps: subVal,
-    total_dub_eps: dubVal,
-    genre: x.genre || "",
-    premiered: x.premiered || "",
-    status: x.status || "",
-    mal_score: x.mal_score !== null && x.mal_score !== undefined ? x.mal_score : "N/A",
-    anikoto_id: x.anikoto_id || "",
-    type: x.type || "",
+function mapItem(item) {
+  if (!item) return null;
+  
+  // Extract spaced keys safely using explicit schema notations
+  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 0;
+  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 0;
 
-    // Backward compatibility aliases:
-    slug: x.id || "",
-    poster_url: x.poster || "",
-    anime_status: x.status || "",
-    synopsis: x.description || "",
-    anime_type: x.type || "TV"
+  return {
+    id: item.id || item.slug || '',
+    title: item.title || '',
+    description: item.description || '',
+    poster: item.poster || '',
+    
+    // Support all naming variations simultaneously to prevent downstream pipeline breaks
+    "s / ep / c": subValue,
+    "d / ep / c": dubValue,
+    "s/ep/c": subValue,
+    "d/ep/c": dubValue,
+    total_sub_eps: subValue,
+    total_dub_eps: dubValue,
+
+    status: item.status || item.anime_status || '',
+    type: item.type || '',
+    jp_titles: item.jp_titles || '',
+    keywords: item.keywords || '',
+    aired: item.aired || '',
+    premiered: item.premiered || '',
+    duration: item.duration || '',
+    mal_score: item.mal_score || '',
+    studios: item.studios || '',
+    genre: item.genre || '',
+    anikoto_id: item.anikoto_id !== undefined ? item.anikoto_id : null
   };
 }
 

@@ -3,32 +3,11 @@
  * Cloudflare Worker (ES Module Router)
  */
 
-function extractAnikotoIds(cell) {
-  const ids = [];
-  if (!cell) return ids;
-  
-  if (Array.isArray(cell)) {
-    cell.forEach(item => {
-      if (item !== null && item !== undefined) {
-        if (typeof item === 'object') {
-          const val = item.anikoto_id !== undefined ? item.anikoto_id : item.id;
-          if (val !== undefined && val !== null) {
-            ids.push(Number(val));
-          }
-        } else {
-          ids.push(Number(item));
-        }
-      }
-    });
-  } else if (typeof cell === 'object') {
-    const val = cell.anikoto_id !== undefined ? cell.anikoto_id : cell.id;
-    if (val !== undefined && val !== null) {
-      ids.push(Number(val));
-    }
-  } else if (typeof cell === 'number' || typeof cell === 'string') {
-    ids.push(Number(cell));
-  }
-  return ids.filter(id => !isNaN(id));
+function isValidNumericRank(val) {
+  if (val === null || val === undefined) return false;
+  // Stringify the property value, trim any white spaces, and check if it matches a digit sequence pattern
+  const clean = String(val).trim();
+  return /^\d+$/.test(clean);
 }
 
 export default {
@@ -87,38 +66,53 @@ export default {
           'most-viewed-month'
         ];
 
-        // Explicit iteration over every row to gather valid slugs by specific bracket keys
+        // Explicit iteration over every row to gather valid slugs by trimmed regex checks
         categories.forEach(col => {
           trendingRows.forEach(row => {
             const rankVal = row[col];
-            if (rankVal !== null && rankVal !== undefined && rankVal !== '' && !isNaN(rankVal) && row.slug) {
+            if (row.slug && isValidNumericRank(rankVal)) {
               uniqueSlugsSet.add(row.slug);
             }
           });
         });
 
-        // Scan rows to locate the one single cell in the entire table containing the JSONB data arrays
+        // Scan the rows to locate the non-null cells containing latest_episodes and upcoming_anime arrays
         let latestEpisodesIds = [];
         let upcomingAnimeIds = [];
 
-        trendingRows.forEach(row => {
-          if (row.latest_episodes) {
-            const ids = extractAnikotoIds(row.latest_episodes);
-            if (ids.length > 0) {
-              latestEpisodesIds = ids;
-              ids.forEach(id => uniqueIdsSet.add(id));
-            }
-          }
+        for (const row of trendingRows) {
+          // Parse upcoming_anime as a flat array of numbers
           if (row.upcoming_anime) {
-            const ids = extractAnikotoIds(row.upcoming_anime);
-            if (ids.length > 0) {
-              upcomingAnimeIds = ids;
-              ids.forEach(id => uniqueIdsSet.add(id));
+            const cell = row.upcoming_anime;
+            const arr = Array.isArray(cell) ? cell : [cell];
+            upcomingAnimeIds = arr.map(item => Number(item)).filter(id => !isNaN(id));
+            if (upcomingAnimeIds.length > 0) {
+              break;
             }
           }
-        });
+        }
 
-        // Compile distinct arrays matching exactly required naming conventions
+        for (const row of trendingRows) {
+          // Parse latest_episodes as an array of objects, pulling out the nested object 'id' property values and converting them to numbers
+          if (row.latest_episodes) {
+            const cell = row.latest_episodes;
+            const arr = Array.isArray(cell) ? cell : [cell];
+            latestEpisodesIds = arr.map(item => {
+              if (item && typeof item === 'object') {
+                return Number(item.id);
+              }
+              return Number(item);
+            }).filter(id => !isNaN(id));
+            if (latestEpisodesIds.length > 0) {
+              break;
+            }
+          }
+        }
+
+        // Compile all unique target slugs and anikoto_id numbers into separate filter pools
+        latestEpisodesIds.forEach(id => uniqueIdsSet.add(id));
+        upcomingAnimeIds.forEach(id => uniqueIdsSet.add(id));
+
         const uniqueSlugsList = Array.from(uniqueSlugsSet).filter(Boolean);
         const uniqueIdsList = Array.from(uniqueIdsSet).filter(id => id !== null && id !== undefined && !isNaN(id));
 
@@ -127,7 +121,7 @@ export default {
 
         let metaRows = [];
 
-        // Step 3: Perform ONE cross-table bulk batch query using double-quoted slug escaping and matching variables
+        // Step 3: Perform ONE cross-table bulk fetch back to 'anime_list1' using the exact syntax
         if (uniqueSlugsList.length > 0 || uniqueIdsList.length > 0) {
           const selectQuery = `or=(id.in.(${uniqueSlugs.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${uniqueIds.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
           const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
@@ -156,11 +150,11 @@ export default {
           });
         }
 
-        // Step 4: Order the metadata arrays sequentially to match original layout placements (using bracket notation)
+        // Step 4: Map the retrieved metadata objects back into separate response arrays in correct rank order
         const getSortedContainer = (columnName) => {
           return trendingRows
-            .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '' && !isNaN(r[columnName]))
-            .sort((a, b) => parseInt(a[columnName]) - parseInt(b[columnName]))
+            .filter(r => r.slug && isValidNumericRank(r[columnName]))
+            .sort((a, b) => parseInt(String(a[columnName]).trim()) - parseInt(String(b[columnName]).trim()))
             .map(r => metaBySlug.get(r.slug))
             .filter(Boolean);
         };
@@ -176,7 +170,7 @@ export default {
         const latest_episodes = latestEpisodesIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
         const upcoming_anime = upcomingAnimeIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
 
-        // Step 5: Package the payload cleanly matching home sections
+        // Step 5: Package response
         const responseData = {
           status: 'success',
           data: {
@@ -203,7 +197,7 @@ export default {
       } catch (error) {
         console.error('Error serving /api/home request:', error);
         
-        // Deep validation: Return safe empty collections on database or payload structural failures
+        // Deep validation fallback
         return new Response(JSON.stringify({
           status: 'success',
           data: {

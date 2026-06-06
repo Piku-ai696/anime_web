@@ -289,13 +289,19 @@ export default {
  */
 function mapRecord(x) {
   if (!x) return x;
+  let subVal = x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0;
+  let dubVal = x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0;
   return {
     id: x.id || "",
     title: x.title || "",
     description: x.description || "",
     poster: x.poster || "",
-    "s / ep / c": x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0,
-    "d / ep / c": x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0,
+    "s / ep / c": subVal,
+    "d / ep / c": dubVal,
+    "s/ep/c": subVal,
+    "d/ep/c": dubVal,
+    total_sub_eps: subVal,
+    total_dub_eps: dubVal,
     genre: x.genre || "",
     premiered: x.premiered || "",
     status: x.status || "",
@@ -307,8 +313,6 @@ function mapRecord(x) {
     slug: x.id || "",
     poster_url: x.poster || "",
     anime_status: x.status || "",
-    total_sub_eps: x["s / ep / c"] !== null && x["s / ep / c"] !== undefined ? x["s / ep / c"] : 0,
-    total_dub_eps: x["d / ep / c"] !== null && x["d / ep / c"] !== undefined ? x["d / ep / c"] : 0,
     synopsis: x.description || "",
     anime_type: x.type || "TV"
   };

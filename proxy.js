@@ -158,7 +158,7 @@ export default {
 
         const baseAnime = list[0];
         const mappedBaseAnime = mapItem(baseAnime);
-        const baseId = baseAnime.id;
+        const baseIdString = baseAnime.id;
 
         // Tokenize title and keyword parameters, filtering out filler words
         const cleanTokens = (str) => {
@@ -166,8 +166,7 @@ export default {
           const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
           return str
             .toLowerCase()
-            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, " ")
-            .split(/\s+/)
+            .split(/[\s,]+/)
             .map(t => t.trim())
             .filter(t => t.length > 2 && !fillers.has(t));
         };
@@ -180,35 +179,10 @@ export default {
         ];
 
         let recommendations = [];
-        // Appending inequality filter so the base anime avoids recommending itself
-        let recsUrl = `${supabaseUrl}/rest/v1/anime_list1?id=neq.${encodeURIComponent(baseId)}&select=${encodeURIComponent(selectStr)}`;
+        let recsUrl = `${supabaseUrl}/rest/v1/anime_list1?id=neq.${encodeURIComponent(baseIdString)}&select=${encodeURIComponent(selectStr)}`;
 
         let orClauses = [];
         
-        // Loop string builder to build case-insensitive substring checks using standard PostgREST format
-        if (baseAnime.genre) {
-          let genreArray = [];
-          if (Array.isArray(baseAnime.genre)) {
-            genreArray = baseAnime.genre;
-          } else if (typeof baseAnime.genre === 'string') {
-            try {
-              const parsed = JSON.parse(baseAnime.genre);
-              if (Array.isArray(parsed)) {
-                genreArray = parsed;
-              } else {
-                genreArray = baseAnime.genre.split(',').map(g => g.trim());
-              }
-            } catch(e) {
-              genreArray = baseAnime.genre.split(',').map(g => g.trim());
-            }
-          }
-          genreArray.forEach(genreItem => {
-            if (genreItem && genreItem.trim() !== '') {
-              orClauses.push(`genre.ilike.%${encodeURIComponent(genreItem.trim())}%`);
-            }
-          });
-        }
-
         // Add title and keyword clauses to query matrix
         for (const token of tokens.slice(0, 10)) {
           orClauses.push(`title.ilike.%${encodeURIComponent(token)}%`);
@@ -216,7 +190,7 @@ export default {
         }
 
         if (orClauses.length > 0) {
-          recsUrl += `&or=(${orClauses.slice(0, 20).join(',')})`;
+          recsUrl += `&or=(${orClauses.join(',')})`;
         }
 
         recsUrl += `&limit=24`; // Capped strictly at 24 entries
@@ -280,7 +254,7 @@ export default {
         ...corsHeaders
       }
     });
-  }
+  },
 };
 
 /**
@@ -288,27 +262,19 @@ export default {
  */
 function mapItem(item) {
   if (!item) return null;
-  
-  // Extract spaced keys safely using explicit schema notations
-  const subValue = item["s/ep/c"] !== undefined && item["s/ ep/c"] !== null ? item["s/ep/c"] : 0;
-  const dubValue = item["d/ep/c"] !== undefined && item["d/ep/c"] !== null ? item["d/ep/c"] : 0;
-
+  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 0;
+  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 0;
   return {
-    id: item.id || item.slug || '',
+    id: item.id || '',
     title: item.title || '',
     description: item.description || '',
     poster: item.poster || '',
-    
-    // Support all naming variations simultaneously to prevent downstream pipeline breaks
     "s / ep / c": subValue,
     "d / ep / c": dubValue,
     "s/ep/c": subValue,
     "d/ep/c": dubValue,
-    total_sub_eps: subValue,
-    total_dub_eps: dubValue,
-
-    status: item.status || item.anime_status || '',
-    type: item.type || '',
+    status: item.status || '',
+    type: item.type || 'TV',
     jp_titles: item.jp_titles || '',
     keywords: item.keywords || '',
     aired: item.aired || '',

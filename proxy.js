@@ -1,9 +1,10 @@
 export default {
   async fetch(request, env, ctx) {
+    // Permissive Access Pipeline: Apply universal headers across all transaction contexts
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
     };
 
     // Intercept OPTIONS preflight requests natively with an empty 200 response
@@ -14,16 +15,16 @@ export default {
       });
     }
 
-    // Active Database Credentials Configuration
+    // Target Database Credentials Configuration
     const supabaseUrl = (env && env.SUPABASE_URL) || "https://ucgxzganknweqfucjqqw.supabase.co";
     const supabaseKey = (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.SUPABASE_KEY) || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY";
 
     const url = new URL(request.url);
 
-    // Endpoint A: Path '/api/home' (GET)
-    if (url.pathname === '/api/home' && request.method === 'GET') {
+    // Optimized Endpoint Router '/api/home'
+    if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        // Explicitly compiled select string wrapping slashed column tokens inside double quotes
+        // Format selector criteria explicitly to handle slashed column parameters safely via double quotes
         const selectStr = `id,title,description,poster,"s / ep / c","d / ep / c",genre,premiered,status,mal_score,anikoto_id,type`;
         
         const tables = [
@@ -38,7 +39,7 @@ export default {
           { key: 'upcoming_anime', table: 'upcoming_anime', limit: 5 }
         ];
 
-        // Execute parallel async requests
+        // Fetch records concurrently in parallel across all 9 custom dashboard tables
         const fetchPromises = tables.map(async (cfg) => {
           try {
             let queryUrl = `${supabaseUrl}/rest/v1/${cfg.table}?select=${encodeURIComponent(selectStr)}`;
@@ -74,7 +75,8 @@ export default {
         const results = await Promise.all(fetchPromises);
         const responseData = {};
         for (const item of results) {
-          responseData[item.key] = item.data;
+          // Fallback any null values gracefully to default array objects
+          responseData[item.key] = item.data || [];
         }
 
         return new Response(JSON.stringify({
@@ -90,7 +92,12 @@ export default {
       } catch (err) {
         return new Response(JSON.stringify({
           status: "error",
-          message: err.message
+          message: err.message,
+          data: {
+            hero_slider: [], trending: [], popular: [], top_airing: [],
+            most_viewed_day: [], most_viewed_week: [], most_viewed_month: [],
+            latest_episodes: [], upcoming_anime: []
+          }
         }), {
           status: 500,
           headers: {
@@ -101,8 +108,8 @@ export default {
       }
     }
 
-    // Endpoint B: Path '/api/anime' (GET)
-    if (url.pathname === '/api/anime' && request.method === 'GET') {
+    // Optimized Endpoint Router '/api/anime'
+    if (url.pathname === '/api/anime' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const slug = url.searchParams.get("slug");
         if (!slug || slug.trim() === "") {
@@ -153,7 +160,7 @@ export default {
         const mappedBaseAnime = mapRecord(baseAnime);
         const baseId = baseAnime.id;
 
-        // Clean tokens from keywords and title
+        // Clean the text data, extract terms from the keyword block, and execute an aggregated logical 'or' statement
         const cleanTokens = (str) => {
           if (!str || typeof str !== 'string') return [];
           const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
@@ -199,7 +206,7 @@ export default {
           recsUrl += `&or=(${orClauses.slice(0, 20).join(',')})`;
         }
 
-        recsUrl += `&limit=24`; // Capped at 24 entries
+        recsUrl += `&limit=24`; // Return up to 24 relevant related titles while filtering out its own row ID
 
         const recsRes = await fetch(recsUrl, {
           method: 'GET',
@@ -234,7 +241,11 @@ export default {
       } catch (err) {
         return new Response(JSON.stringify({
           status: "error",
-          message: err.message
+          message: err.message,
+          data: {
+            anime_details: null,
+            recommendations: []
+          }
         }), {
           status: 500,
           headers: {

@@ -131,12 +131,15 @@ export default {
 
         let metaRows = [];
 
-        // Step 3: Execute exactly ONE cross-table bulk fetch call back to 'anime_list1' using the exact syntax
+        // Step 3: Execute exactly ONE cross-table bulk fetch call back to 'anime_list1' using URL encoded slugs
         if (uniqueSlugsSet.size > 0 || uniqueIdsSet.size > 0) {
           const slugsArray = Array.from(uniqueSlugsSet).length > 0 ? Array.from(uniqueSlugsSet) : ['__dummy_slug__'];
           const idsArray = Array.from(uniqueIdsSet).length > 0 ? Array.from(uniqueIdsSet) : [-1];
 
-          const selectQuery = `or=(id.in.(${slugsArray.map(s => `"${s}"`).join(',')}),anikoto_id.in.(${idsArray.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+          // CRITICAL URL QUERY FIX: Explicitly URL-encode string slugs to prevent syntax rejections using %22
+          const safeSlugs = slugsArray.map(s => `%22${s}%22`).join(',');
+          const selectQuery = `or=(id.in.(${safeSlugs}),anikoto_id.in.(${idsArray.join(',')}))&select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+          
           const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${selectQuery}`;
           const metaRes = await fetch(metaUrl, { headers });
 

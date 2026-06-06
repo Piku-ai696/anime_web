@@ -56,8 +56,8 @@ export default {
           'most_viewed_day?select=*&order=rank_number.asc',
           'most_viewed_week?select=*&order=rank_number.asc',
           'most_viewed_month?select=*&order=rank_number.asc',
-          'latest_episodes?select=*&order=rank_number.asc&limit=5',
-          'upcoming_anime?select=*&order=rank_number.asc&limit=5'
+          'latest_episodes?select=*&limit=5',
+          'upcoming_anime?select=*&limit=5'
         ];
 
         // Execute parallel Promise.all array of global fetch commands to pull data records simultaneously

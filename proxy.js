@@ -153,6 +153,92 @@ export default {
       }
     }
 
+    // Handle requests to GET '/api/anime?slug=[slug]'
+    if (url.pathname === '/api/anime' && request.method === 'GET') {
+      try {
+        const slug = url.searchParams.get('slug') || '';
+        
+        const supabaseUrl = env.SUPABASE_URL || 'https://ucgxzganknweqfucjqqw.supabase.co';
+        const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY';
+
+        const headers = {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        };
+
+        const endpoints = [
+          'hero_slider?select=*',
+          'trending?select=*',
+          'popular?select=*',
+          'top_airing?select=*',
+          'most_viewed_day?select=*',
+          'most_viewed_week?select=*',
+          'most_viewed_month?select=*',
+          'latest_episodes?select=*',
+          'upcoming_anime?select=*'
+        ];
+
+        const fetchPromises = endpoints.map(endpoint => 
+          fetch(`${supabaseUrl}/rest/v1/${endpoint}`, { headers })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => [])
+        );
+
+        const rawResults = await Promise.all(fetchPromises);
+        const allItemsMap = new Map();
+        
+        rawResults.flat().forEach(item => {
+          if (item) {
+            const mapped = mapItem(item);
+            if (mapped && mapped.id) {
+              allItemsMap.set(mapped.id, mapped);
+            }
+          }
+        });
+
+        const allItems = Array.from(allItemsMap.values());
+        const anime = allItems.find(i => i.id === slug) || allItems[0] || null;
+
+        let recommendations = [];
+        if (anime) {
+          const keywords = anime.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          recommendations = allItems.filter(i => {
+            if (i.id === anime.id) return false;
+            return keywords.some(kw => i.title.toLowerCase().includes(kw) || i.description.toLowerCase().includes(kw));
+          });
+          
+          if (recommendations.length < 6) {
+            const extra = allItems.filter(i => i.id !== anime.id && !recommendations.some(r => r.id === i.id));
+            recommendations = [...recommendations, ...extra].slice(0, 12);
+          }
+        }
+
+        return new Response(JSON.stringify({
+          status: 'success',
+          data: {
+            anime,
+            recommendations
+          }
+        }), {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        });
+
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    }
+
     // Default 404 Route
     return new Response(JSON.stringify({ error: 'Not Found' }), {
       status: 404,

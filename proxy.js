@@ -1,447 +1,245 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// ZyroX — Cloudflare Worker Streaming Engine & Database Proxy
-// Feature Stack: M3U8 Manifest Rewriting · PNG Segment Stripping · GA4 Endpoint Routing
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * XMAX platform global data engine
+ * Cloudflare Worker (ES Module Router)
+ */
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-// Strips operational metadata (cf-ray, server) from responses
-function secureResponse(response) {
-  const newHeaders = new Headers(response.headers);
-  newHeaders.delete("cf-ray");
-  newHeaders.delete("server");
+function extractAnikotoIds(cell) {
+  const ids = [];
+  if (!cell) return ids;
   
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: newHeaders
-  });
-}
-
-// Helper for OPTIONS request
-function handleOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders,
-  });
-}
-
-// Helper to respond with JSON
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...corsHeaders,
-    },
-  });
-}
-
-// Pure Uint8Array high-performance wrapper stripping magic PNG headers from upstream TS
-function stripPngMagic(arrayBuffer) {
-  const uint8 = new Uint8Array(arrayBuffer);
-  // PNG Magic Signature: 0x89 0x50 0x4e 0x47
-  if (uint8.length > 70 && uint8[0] === 0x89 && uint8[1] === 0x50 && uint8[2] === 0x4e && uint8[3] === 0x47) {
-    // Find absolute position of IEND marker: 0x49 0x45 0x4e 0x44
-    let iendIdx = -1;
-    for (let i = 0; i < uint8.length - 4; i++) {
-      if (uint8[i] === 0x49 && uint8[i+1] === 0x45 && uint8[i+2] === 0x4e && uint8[i+3] === 0x44) {
-        iendIdx = i;
-        break;
+  if (Array.isArray(cell)) {
+    cell.forEach(item => {
+      if (item !== null && item !== undefined) {
+        if (typeof item === 'object') {
+          const val = item.anikoto_id !== undefined ? item.anikoto_id : item.id;
+          if (val !== undefined && val !== null) {
+            ids.push(Number(val));
+          }
+        } else {
+          ids.push(Number(item));
+        }
       }
-    }
-    if (iendIdx >= 0) {
-      const tsStart = iendIdx + 8; // Skip IEND chunk (4B magic + 4B CRC)
-      return uint8.subarray(tsStart);
-    }
-  }
-  return uint8;
-}
-
-const SUPABASE_API_URL = 'https://ucgxzganknweqfucjqqw.supabase.co/rest/v1';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTk3MzcsImV4cCI6MjA5NDc3NTczN30.S1oOUCz6bhXGcULeZPA3Uc7w33_Q-UGAjRH_FEPuCjo';
-
-async function supabaseFetch(path, env) {
-  const url = `${env.SUPABASE_URL || SUPABASE_API_URL}${path}`;
-  const key = env.SUPABASE_ANON_KEY || SUPABASE_KEY;
-  const res = await fetch(url, {
-    headers: {
-      'apikey': key,
-      'Authorization': `Bearer ${key}`
-    }
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Supabase error ${res.status}: ${text}`);
-  }
-  return res.json();
-}
-
-async function handleRequest(request, env, ctx) {
-  // ── OPTIONS Preflight Handshake ──
-  if (request.method === 'OPTIONS') {
-    return handleOptions();
-  }
-
-  const urlParsed = new URL(request.url);
-  const path = urlParsed.pathname;
-  const searchParams = urlParsed.searchParams;
-
-  // ── Health Check ──
-  if (path === '/health' || path === '/api/health') {
-    return jsonResponse({ status: 'ok', worker: true, timestamp: new Date().toISOString() });
-  }
-
-  // ── Route: /api/ad ──
-  if (path === '/api/ad') {
-    const isMobile = searchParams.get('mobile') === 'true';
-    let rawAdCode = '';
-    if (isMobile) {
-      rawAdCode = `<div style="display:flex; flex-direction:column; align-items:center; gap:16px; margin:auto;">
-  <div style="width:300px; height:250px; background:rgba(0,0,0,0.2); display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:8px;">
-    <script type="text/javascript">
-      atOptions = {
-        'key' : 'f571a4ab7a29f5b903a47f5b2b39c11a',
-        'format' : 'iframe',
-        'height' : 250,
-        'width' : 300,
-        'params' : {}
-      };
-    </script>
-    <script type="text/javascript" src="https://www.highperformanceformat.com/f571a4ab7a29f5b903a47f5b2b39c11a/invoke.js"></script>
-  </div>
-  <div style="width:300px; height:250px; background:rgba(0,0,0,0.2); display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:8px;">
-    <script type="text/javascript">
-      atOptions = {
-        'key' : 'f571a4ab7a29f5b903a47f5b2b39c11a',
-        'format' : 'iframe',
-        'height' : 250,
-        'width' : 300,
-        'params' : {}
-      };
-    </script>
-    <script type="text/javascript" src="https://www.highperformanceformat.com/f571a4ab7a29f5b903a47f5b2b39c11a/invoke.js"></script>
-  </div>
-</div>`;
-    } else {
-      rawAdCode = `<script async="async" data-cfasync="false" src="https://pl29627205.effectivecpmnetwork.com/c3bec2ae5a707c14264a13b0b8be6369/invoke.js"></script><div id="container-c3bec2ae5a707c14264a13b0b8be6369"></div>`;
-    }
-
-    let encrypted = '';
-    for (let i = 0; i < rawAdCode.length; i++) {
-      encrypted += String.fromCharCode(rawAdCode.charCodeAt(i) ^ 42);
-    }
-    const payload = btoa(encrypted);
-    return jsonResponse({
-      status: 'ok',
-      payload
     });
+  } else if (typeof cell === 'object') {
+    const val = cell.anikoto_id !== undefined ? cell.anikoto_id : cell.id;
+    if (val !== undefined && val !== null) {
+      ids.push(Number(val));
+    }
+  } else if (typeof cell === 'number' || typeof cell === 'string') {
+    ids.push(Number(cell));
   }
-
-  // ── Route: /api/anime ──
-  if (path === '/api/anime') {
-    try {
-      const supabaseUrl = env.SUPABASE_URL || SUPABASE_API_URL;
-      const key = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY || SUPABASE_KEY;
-      
-      const queryParams = new URLSearchParams(searchParams);
-      
-      if (queryParams.has('id')) {
-        const idVal = queryParams.get('id');
-        if (!idVal.includes('.')) {
-          queryParams.set('id', `eq.${idVal}`);
-        }
-      }
-      
-      if (!queryParams.has('select')) {
-        queryParams.set('select', 'id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url');
-      }
-
-      const supabaseQueryUrl = `${supabaseUrl}/anime_list?${queryParams.toString()}`;
-      const res = await fetch(supabaseQueryUrl, {
-        headers: {
-          'apikey': key,
-          'Authorization': `Bearer ${key}`
-        }
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        return jsonResponse({ error: true, message: `Supabase error ${res.status}: ${text}` }, res.status);
-      }
-
-      const data = await res.json();
-      return jsonResponse(data);
-    } catch (err) {
-      return jsonResponse({ error: true, message: err.message }, 500);
-    }
-  }
-
-  // ── Route: /api/list ──
-  if (path === '/api/list') {
-    try {
-      const supabaseUrl = env.SUPABASE_URL || SUPABASE_API_URL;
-      const key = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY || SUPABASE_KEY;
-      
-      const searchVal = searchParams.get('search') || searchParams.get('q') || '';
-      
-      const queryParams = new URLSearchParams();
-      queryParams.set('select', 'id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url');
-      if (searchVal) {
-        queryParams.set('title', `ilike.*${searchVal}*`);
-      }
-      queryParams.set('limit', '24');
-
-      const supabaseQueryUrl = `${supabaseUrl}/anime_list?${queryParams.toString()}`;
-      const res = await fetch(supabaseQueryUrl, {
-        headers: {
-          'apikey': key,
-          'Authorization': `Bearer ${key}`
-        }
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        return jsonResponse({ error: true, message: `Supabase error ${res.status}: ${text}` }, res.status);
-      }
-
-      const data = await res.json();
-      return jsonResponse(data);
-    } catch (err) {
-      return jsonResponse({ error: true, message: err.message }, 500);
-    }
-  }
-
-    // ── Trending Spotlight Endpoint ──
-    if (path === '/api/trending/spotlight') {
-      try {
-        const trendData = await supabaseFetch('/anime_list_trending?spot=not.is.null&order=spot.asc', env);
-        if (!trendData || trendData.length === 0) return jsonResponse([]);
-        const ids = trendData.map(item => item.id).filter(Boolean);
-        if (ids.length === 0) return jsonResponse([]);
-
-        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
-        const mapped = trendData.map(t => {
-          const anime = animeData.find(a => a.id === t.id);
-          return anime ? { ...anime, spot: t.spot } : null;
-        }).filter(Boolean);
-
-        return jsonResponse(mapped);
-      } catch (err) {
-        return jsonResponse({ error: true, message: err.message }, 500);
-      }
-    }
-
-    // ── Trending Now Endpoint ──
-    if (path === '/api/trending/now') {
-      try {
-        const trendData = await supabaseFetch('/anime_list_trending?no=not.is.null&order=no.asc', env);
-        if (!trendData || trendData.length === 0) return jsonResponse([]);
-        const ids = trendData.map(item => item.id).filter(Boolean);
-        if (ids.length === 0) return jsonResponse([]);
-
-        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
-        const mapped = trendData.map(t => {
-          const anime = animeData.find(a => a.id === t.id);
-          return anime ? { ...anime, no: t.no } : null;
-        }).filter(Boolean);
-
-        return jsonResponse(mapped);
-      } catch (err) {
-        return jsonResponse({ error: true, message: err.message }, 500);
-      }
-    }
-
-    // ── Top 10 Global Endpoint ──
-    if (path === '/api/trending/top10') {
-      try {
-        const trendData = await supabaseFetch('/anime_list_trending?T10=not.is.null&order=T10.asc', env);
-        if (!trendData || trendData.length === 0) return jsonResponse([]);
-        const ids = trendData.map(item => item.id).filter(Boolean);
-        if (ids.length === 0) return jsonResponse([]);
-
-        const animeData = await supabaseFetch(`/anime_list?select=id,title,description,poster,s_eps,d_eps,type,status,studios,producers,genre,mal_score,duration,premiered,aired,jp_titles,s_m3u8_url,d_m3u8_url&id=in.(${ids.join(',')})`, env);
-        const mapped = trendData.map(t => {
-          const anime = animeData.find(a => a.id === t.id);
-          return anime ? { ...anime, T10: t.T10 } : null;
-        }).filter(Boolean);
-
-        return jsonResponse(mapped);
-      } catch (err) {
-        return jsonResponse({ error: true, message: err.message }, 500);
-      }
-    }
-
-    // ── GET /proxy — High-Fidelity Media Pass-Through ──
-    if (path === '/proxy') {
-      const targetUrl = searchParams.get('url');
-      if (!targetUrl) {
-        return jsonResponse({ error: 'Missing "url" query parameter' }, 400);
-      }
-
-      // Keep the worker active only for manifest files (.m3u8), subtitle tracks (.vtt), poster images, and PNG-masked segments
-      let isManifest = false;
-      let isPngSegment = false;
-      let isAllowed = false;
-      try {
-        const urlObj = new URL(targetUrl);
-        const pathnameLower = urlObj.pathname.toLowerCase();
-        const hostLower = urlObj.hostname.toLowerCase();
-
-        isManifest = pathnameLower.endsWith('.m3u8') || 
-                     targetUrl.toLowerCase().includes('m3u8') || 
-                     targetUrl.toLowerCase().includes('mpegurl');
-        
-        isPngSegment = hostLower.includes('ibyteimg.com') || 
-                       hostLower.includes('byteimg.com');
-
-        isAllowed = isManifest ||
-                    isPngSegment ||
-                    pathnameLower.endsWith('.vtt') ||
-                    pathnameLower.endsWith('.webp') ||
-                    pathnameLower.endsWith('.png') ||
-                    pathnameLower.endsWith('.jpg') ||
-                    pathnameLower.endsWith('.jpeg') ||
-                    targetUrl.toLowerCase().includes('.vtt');
-      } catch (e) {
-        isAllowed = false;
-      }
-
-      if (!isAllowed) {
-        return jsonResponse({ error: 'Forbidden: Worker proxy is strictly dedicated to manifests, subtitles, poster images, and PNG-masked segments.' }, 403);
-      }
-
-      try {
-        const upstream = await fetch(targetUrl, {
-          headers: {
-            'Referer': 'https://vibeplayer.site/',
-            'Origin': 'https://vibeplayer.site',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24", "Google Chrome";v="125"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'cross-site',
-          },
-          redirect: 'follow',
-        });
-
-        if (!upstream.ok) {
-          return new Response(`Upstream returned status ${upstream.status}`, {
-            status: upstream.status,
-            headers: corsHeaders,
-          });
-        }
-
-        // If it's a PNG-masked segment, strip the PNG signature and return the raw TS file
-        if (isPngSegment) {
-          const bodyBuffer = await upstream.arrayBuffer();
-          const cleanTs = stripPngMagic(bodyBuffer);
-          return new Response(cleanTs, {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'video/mp2t',
-              'Cache-Control': 'public, max-age=31536000',
-            }
-          });
-        }
-
-        // If it's not a manifest, pass the response directly through with original content-type
-        if (!isManifest) {
-          const contentType = upstream.headers.get('Content-Type') || 'application/octet-stream';
-          const bodyBuffer = await upstream.arrayBuffer();
-          return new Response(bodyBuffer, {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': contentType,
-            }
-          });
-        }
-
-        const body = await upstream.text();
-        const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
-        const isMaster = body.includes('#EXT-X-STREAM-INF');
-
-        const rewritten = body
-          .split('\n')
-          .map(line => {
-            const trimmed = line.trim();
-
-            if (isMaster && trimmed.startsWith('#EXT-X-STREAM-INF') && !trimmed.includes('CODECS')) {
-              return trimmed.replace(
-                '#EXT-X-STREAM-INF:',
-                '#EXT-X-STREAM-INF:CODECS="avc1.64001f,mp4a.40.2",'
-              );
-            }
-
-            if (!trimmed || trimmed.startsWith('#')) {
-              return line;
-            }
-
-            let absoluteUrl = trimmed;
-            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-              absoluteUrl = new URL(trimmed, baseUrl).href;
-            }
-
-            const isPlaylist = absoluteUrl.toLowerCase().includes('m3u8') || absoluteUrl.toLowerCase().includes('mpegurl');
-            
-            let isPngSeg = false;
-            try {
-              const urlObj = new URL(absoluteUrl);
-              const hostLower = urlObj.hostname.toLowerCase();
-              isPngSeg = hostLower.includes('ibyteimg.com') || hostLower.includes('byteimg.com');
-            } catch(e) {}
-
-            if (isPlaylist || isPngSeg) {
-              return `/proxy?url=${encodeURIComponent(absoluteUrl)}`;
-            } else {
-              return absoluteUrl;
-            }
-          })
-          .join('\n');
-
-        return new Response(rewritten, {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/vnd.apple.mpegurl',
-          },
-        });
-
-      } catch (err) {
-        return new Response(`Proxy error: ${err.message}`, {
-          status: 502,
-          headers: corsHeaders,
-        });
-      }
-    }
-
-    // ── Catch-All 404 Response ──
-    return new Response('Not Found', {
-      status: 404,
-      headers: corsHeaders,
-    });
+  return ids.filter(id => !isNaN(id));
 }
 
 export default {
   async fetch(request, env, ctx) {
-    try {
-      const response = await handleRequest(request, env, ctx);
-      return secureResponse(response);
-    } catch (err) {
-      return secureResponse(new Response(`Internal Server Error: ${err.message}`, {
-        status: 500,
+    // Standard CORS Headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    // Intercept HTTP OPTIONS requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 200,
         headers: corsHeaders
-      }));
+      });
     }
+
+    const url = new URL(request.url);
+
+    // Handle requests to GET '/api/home'
+    if (url.pathname === '/api/home' && request.method === 'GET') {
+      try {
+        const supabaseUrl = env.SUPABASE_URL || 'https://ucgxzganknweqfucjqqw.supabase.co';
+        const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY';
+
+        const headers = {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        };
+
+        // Step A: Fetch all rows from 'anime_list_trending' in a single bulk request
+        const trendingRes = await fetch(`${supabaseUrl}/rest/v1/anime_list_trending?select=*`, { headers });
+        if (!trendingRes.ok) {
+          throw new Error(`Failed to fetch trending list: ${trendingRes.status} ${await trendingRes.text()}`);
+        }
+        const trendingRows = await trendingRes.json();
+
+        if (!Array.isArray(trendingRows)) {
+          throw new Error('Response from anime_list_trending is not an array.');
+        }
+
+        // Step B: Extract all target slugs and anikoto_id elements into globally unique arrays
+        const uniqueSlugs = new Set();
+        const uniqueIds = new Set();
+
+        trendingRows.forEach(row => {
+          // Check columns: hero_slider, trending, popular, top_airing, most-viewed-day, most-viewed-week, most-viewed-month
+          const hasCategory = [
+            row.hero_slider,
+            row.trending,
+            row.popular,
+            row.top_airing,
+            row['most-viewed-day'],
+            row['most-viewed-week'],
+            row['most-viewed-month']
+          ].some(val => val !== null && val !== undefined && val !== '');
+
+          if (hasCategory && row.slug) {
+            uniqueSlugs.add(row.slug);
+          }
+
+          // Extract anikoto_id elements found inside the latest_episodes and upcoming_anime JSONB lists
+          if (row.latest_episodes) {
+            extractAnikotoIds(row.latest_episodes).forEach(id => uniqueIds.add(id));
+          }
+
+          if (row.upcoming_anime) {
+            extractAnikotoIds(row.upcoming_anime).forEach(id => uniqueIds.add(id));
+          }
+        });
+
+        const slugList = Array.from(uniqueSlugs).filter(Boolean);
+        const idList = Array.from(uniqueIds).filter(id => id !== null && id !== undefined && !isNaN(id));
+
+        let metaRows = [];
+
+        // Step C: Perform ONE cross-table bulk batch query to 'anime_list1' matching elements by slug OR anikoto_id
+        if (slugList.length > 0 || idList.length > 0) {
+          const safeSlugs = slugList.length > 0 ? slugList : ['__dummy_slug__'];
+          const safeIds = idList.length > 0 ? idList : [-1];
+
+          const orQuery = `or=(id.in.(${safeSlugs.join(',')}),anikoto_id.in.(${safeIds.join(',')}))`;
+          const selectQuery = `select=id,title,description,poster,s/ep/c,d/ep/c,eps,status,anikoto_id`;
+
+          const metaUrl = `${supabaseUrl}/rest/v1/anime_list1?${orQuery}&${selectQuery}`;
+          const metaRes = await fetch(metaUrl, { headers });
+
+          if (metaRes.ok) {
+            metaRows = await metaRes.json();
+          } else {
+            console.error(`Failed to fetch metadata from anime_list1: ${metaRes.status} ${await metaRes.text()}`);
+          }
+        }
+
+        // Index metadata by slug and anikoto_id for quick O(1) resolution
+        const metaBySlug = new Map();
+        const metaById = new Map();
+
+        if (Array.isArray(metaRows)) {
+          metaRows.forEach(item => {
+            const slug = item.slug || item.id;
+            if (slug) {
+              metaBySlug.set(slug, item);
+            }
+            if (item.anikoto_id !== undefined && item.anikoto_id !== null) {
+              metaById.set(Number(item.anikoto_id), item);
+            }
+          });
+        }
+
+        // Step D: Order the metadata arrays sequentially to match their original row layout placements (rank '1' to '9' etc.)
+        const getSortedContainer = (columnName) => {
+          return trendingRows
+            .filter(r => r.slug && r[columnName] !== null && r[columnName] !== undefined && r[columnName] !== '')
+            .sort((a, b) => parseInt(a[columnName]) - parseInt(b[columnName]))
+            .map(r => metaBySlug.get(r.slug))
+            .filter(Boolean);
+        };
+
+        const hero_slider = getSortedContainer('hero_slider');
+        const trending = getSortedContainer('trending');
+        const popular = getSortedContainer('popular');
+        const top_airing = getSortedContainer('top_airing');
+        const most_viewed_day = getSortedContainer('most-viewed-day');
+        const most_viewed_week = getSortedContainer('most-viewed-week');
+        const most_viewed_month = getSortedContainer('most-viewed-month');
+
+        // Extract latest_episodes and upcoming_anime in their original list order
+        let latestEpisodesIds = [];
+        let upcomingAnimeIds = [];
+
+        for (const r of trendingRows) {
+          if (r.latest_episodes) {
+            const ids = extractAnikotoIds(r.latest_episodes);
+            if (ids.length > 0 && latestEpisodesIds.length === 0) {
+              latestEpisodesIds = ids;
+            }
+          }
+          if (r.upcoming_anime) {
+            const ids = extractAnikotoIds(r.upcoming_anime);
+            if (ids.length > 0 && upcomingAnimeIds.length === 0) {
+              upcomingAnimeIds = ids;
+            }
+          }
+        }
+
+        const latest_episodes = latestEpisodesIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
+        const upcoming_anime = upcomingAnimeIds.map(id => metaById.get(id)).filter(Boolean).slice(0, 5);
+
+        // Step E: Package the payload cleanly into separate tracking segments matching the home containers exactly
+        const responseData = {
+          status: 'success',
+          data: {
+            hero_slider,
+            trending,
+            popular,
+            top_airing,
+            latest_episodes,
+            upcoming_anime,
+            most_viewed_day,
+            most_viewed_week,
+            most_viewed_month
+          }
+        };
+
+        return new Response(JSON.stringify(responseData), {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        });
+
+      } catch (error) {
+        console.error('Error serving /api/home request:', error);
+        
+        // Deep validation: Return safe empty collections on database or payload structural failures
+        return new Response(JSON.stringify({
+          status: 'success',
+          data: {
+            hero_slider: [],
+            trending: [],
+            popular: [],
+            top_airing: [],
+            latest_episodes: [],
+            upcoming_anime: [],
+            most_viewed_day: [],
+            most_viewed_week: [],
+            most_viewed_month: []
+          },
+          error: error.message
+        }), {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    }
+
+    // Default 404 Route
+    return new Response(JSON.stringify({ error: 'Not Found' }), {
+      status: 404,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
+    });
   }
 };

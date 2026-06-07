@@ -237,6 +237,7 @@ export default {
         const baseMalId = baseAnime.mal_id;
 
         let mappedDatabaseRelatedEntries = [];
+        let savedMalIdsList = [];
 
         if (baseMalId) {
           const jikanUrl = `https://api.jikan.moe/v4/anime/${baseMalId}/relations`;
@@ -262,7 +263,7 @@ export default {
                   }
                 }
 
-                const savedMalIdsList = Array.from(malIdsSet);
+                savedMalIdsList = Array.from(malIdsSet);
                 if (savedMalIdsList.length > 0) {
                   const queryUrl = `${supabaseUrl}/rest/v1/anime_list1?select=${encodeURIComponent(selectStr)}&mal_id.in.(${savedMalIdsList.join(',')})&id=neq.${encodeURIComponent(slug)}`;
                   
@@ -293,7 +294,8 @@ export default {
           status: "success",
           data: {
             anime_details: mappedBaseAnime,
-            recommendations: mappedDatabaseRelatedEntries
+            recommendations: mappedDatabaseRelatedEntries,
+            recommendations_order: savedMalIdsList
           }
         }), {
           status: 200,
@@ -362,7 +364,8 @@ function mapItem(item) {
     mal_score: item.mal_score || '',
     studios: item.studios || '',
     genre: item.genre || '',
-    anikoto_id: item.anikoto_id !== undefined ? item.anikoto_id : null
+    anikoto_id: item.anikoto_id !== undefined ? item.anikoto_id : null,
+    mal_id: item.mal_id !== undefined && item.mal_id !== null ? Number(item.mal_id) : null
   };
 }
 

@@ -324,8 +324,8 @@ export default {
  */
 function mapItem(item) {
   if (!item) return null;
-  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 0;
-  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 0;
+  const subValue = item["s/ep/c"] !== undefined && item["s/ep/c"] !== null ? item["s/ep/c"] : 0;
+  const dubValue = item["d/ep/c"] !== undefined && item["d/ep/c"] !== null ? item["d/ep/c"] : 0;
   return {
     id: item.id || '',
     title: item.title || '',

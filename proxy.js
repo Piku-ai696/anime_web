@@ -26,54 +26,44 @@ export default {
       try {
         const search = url.searchParams.get("search");
         const genre = url.searchParams.get("genre");
-        const aired = url.searchParams.get("aired");
-        const premiered = url.searchParams.get("premiered");
-        const studios = url.searchParams.get("studios");
-        const type = url.searchParams.get("type");
         const status = url.searchParams.get("status");
+        const type = url.searchParams.get("type");
+        const premiered = url.searchParams.get("premiered");
 
-        // Explicit sanitization helper function to filter out placeholder text
-        function cleanFilterParam(val) {
+        // Defensive function to catch and completely discard unselected UI placeholder values
+        function getValidParam(val) {
           if (!val) return null;
           const s = val.trim();
           if (s === "" || s.toLowerCase().includes("choose") || s.toLowerCase() === "all" || s.toLowerCase() === "select") return null;
           return s;
         }
 
-        const activeSearch = cleanFilterParam(search);
-        const activeGenre = cleanFilterParam(genre);
-        const activeAired = cleanFilterParam(aired);
-        const activePremiered = cleanFilterParam(premiered);
-        const activeStudios = cleanFilterParam(studios);
-        const activeType = cleanFilterParam(type);
-        const activeStatus = cleanFilterParam(status);
+        const qSearch = getValidParam(search);
+        const qGenre = getValidParam(genre);
+        const qStatus = getValidParam(status);
+        const qType = getValidParam(type);
+        const qPremiered = getValidParam(premiered);
 
-        const isSearchActive = !!(activeSearch || activeGenre || activeAired || activePremiered || activeStudios || activeType || activeStatus);
+        const isFiltering = !!(qSearch || qGenre || qStatus || qType || qPremiered);
 
-        if (isSearchActive) {
+        if (isFiltering) {
           // Dynamic URL Construction for advanced search targeting library table
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
-          if (activeSearch) {
-            searchUrl += `&or=(title.ilike.*${encodeURIComponent(activeSearch)}*,jp_titles.ilike.*${encodeURIComponent(activeSearch)}*,keywords.ilike.*${encodeURIComponent(activeSearch)}*)`;
+          if (qSearch) {
+            searchUrl += `&or=(title.ilike.*${encodeURIComponent(qSearch)}*,jp_titles.ilike.*${encodeURIComponent(qSearch)}*,keywords.ilike.*${encodeURIComponent(qSearch)}*)`;
           }
-          if (activeGenre) {
-            searchUrl += `&genre.cs.[%22${encodeURIComponent(activeGenre)}%22]`;
+          if (qGenre) {
+            searchUrl += `&genre.cs.[%22${encodeURIComponent(qGenre)}%22]`;
           }
-          if (activeAired) {
-            searchUrl += `&aired.ilike.%${encodeURIComponent(activeAired)}%`;
+          if (qStatus) {
+            searchUrl += `&status.eq.${encodeURIComponent(qStatus)}`;
           }
-          if (activePremiered) {
-            searchUrl += `&premiered.eq.${encodeURIComponent(activePremiered)}`;
+          if (qType) {
+            searchUrl += `&type.eq.${encodeURIComponent(qType)}`;
           }
-          if (activeStudios) {
-            searchUrl += `&studios.ilike.%${encodeURIComponent(activeStudios)}%`;
-          }
-          if (activeType) {
-            searchUrl += `&type.eq.${encodeURIComponent(activeType)}`;
-          }
-          if (activeStatus) {
-            searchUrl += `&status.ilike.%${encodeURIComponent(activeStatus)}%`;
+          if (qPremiered) {
+            searchUrl += `&premiered.eq.${encodeURIComponent(qPremiered)}`;
           }
 
           searchUrl += `&limit=60`;
@@ -106,7 +96,7 @@ export default {
           });
         }
 
-        // Default Dashboard Delivery (when isSearchActive is false)
+        // Default Dashboard Delivery (when isFiltering is false)
         const selectStr = `*`;
         const tables = [
           { key: 'hero_slider', table: 'hero_slider', order: 'rank_number.asc', limit: 10 },

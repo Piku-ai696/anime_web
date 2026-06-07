@@ -24,48 +24,44 @@ export default {
     // Path Route A: '/api/home' (Dashboard Delivery Engine or Advanced Search)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        const search = url.searchParams.get("search");
-        const genre = url.searchParams.get("genre");
-        const aired = url.searchParams.get("aired");
-        const premiered = url.searchParams.get("premiered");
-        const studios = url.searchParams.get("studios");
-        const type = url.searchParams.get("type");
-        const status = url.searchParams.get("status");
+        const getParam = (name) => {
+          const val = url.searchParams.get(name);
+          return (val && val.trim() !== "") ? val.trim() : null;
+        };
 
-        const isSearchActive = (
-          (search && search.trim() !== "") ||
-          (genre && genre.trim() !== "") ||
-          (aired && aired.trim() !== "") ||
-          (premiered && premiered.trim() !== "") ||
-          (studios && studios.trim() !== "") ||
-          (type && type.trim() !== "") ||
-          (status && status.trim() !== "")
-        );
+        const search = getParam("search");
+        const genre = getParam("genre");
+        const aired = getParam("aired");
+        const premiered = getParam("premiered");
+        const studios = getParam("studios");
+        const type = getParam("type");
+        const status = getParam("status");
+
+        const isSearchActive = !!(search || genre || aired || premiered || studios || type || status);
 
         if (isSearchActive) {
           // Dynamic URL Construction for advanced search targeting library table
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
-          if (search && search.trim() !== "") {
-            const query = search.trim();
-            searchUrl += `&or=(title.ilike.*${encodeURIComponent(query)}*,jp_titles.ilike.*${encodeURIComponent(query)}*,keywords.ilike.*${encodeURIComponent(query)}*)`;
+          if (search) {
+            searchUrl += `&or=(title.ilike.*${encodeURIComponent(search.trim())}*,jp_titles.ilike.*${encodeURIComponent(search.trim())}*,keywords.ilike.*${encodeURIComponent(search.trim())}*)`;
           }
-          if (genre && genre.trim() !== "") {
+          if (genre) {
             searchUrl += `&genre.cs.[%22${encodeURIComponent(genre.trim())}%22]`;
           }
-          if (aired && aired.trim() !== "") {
-            searchUrl += `&aired.ilike.*${encodeURIComponent(aired.trim())}*`;
+          if (aired) {
+            searchUrl += `&aired.ilike.%${encodeURIComponent(aired.trim())}%`;
           }
-          if (premiered && premiered.trim() !== "") {
+          if (premiered) {
             searchUrl += `&premiered.eq.${encodeURIComponent(premiered.trim())}`;
           }
-          if (studios && studios.trim() !== "") {
-            searchUrl += `&studios.ilike.*${encodeURIComponent(studios.trim())}*`;
+          if (studios) {
+            searchUrl += `&studios.ilike.%${encodeURIComponent(studios.trim())}%`;
           }
-          if (type && type.trim() !== "") {
+          if (type) {
             searchUrl += `&type.eq.${encodeURIComponent(type.trim())}`;
           }
-          if (status && status.trim() !== "") {
+          if (status) {
             searchUrl += `&status.eq.${encodeURIComponent(status.trim())}`;
           }
 
@@ -327,7 +323,7 @@ export default {
 };
 
 /**
- * REPAIRED BACKEND MAPPING UTILITY LAYER
+ * CORE DATABASE SCHEMA NORMALIZATION MAPPER
  */
 function mapItem(item) {
   if (!item) return null;

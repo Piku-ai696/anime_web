@@ -21,7 +21,7 @@ export default {
 
     const url = new URL(request.url);
 
-    // Path Route A: '/api/home' (Dashboard Delivery Engine or Advanced Search)
+    // Path Route A: '/api/home' (Dashboard Delivery Engine or Streamlined Search Gateway)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const search = url.searchParams.get("search");
@@ -38,35 +38,11 @@ export default {
           return s;
         }
 
-        const qSearch = getValidParam(search);
-        const qGenre = getValidParam(genre);
-        const qStatus = getValidParam(status);
-        const qType = getValidParam(type);
-        const qPremiered = getValidParam(premiered);
-
-        const isFiltering = !!(qSearch || qGenre || qStatus || qType || qPremiered);
+        const isFiltering = !!(getValidParam(search) || getValidParam(genre) || getValidParam(status) || getValidParam(type) || getValidParam(premiered));
 
         if (isFiltering) {
-          // Dynamic URL Construction targeting library table
-          let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
-
-          if (qSearch) {
-            searchUrl += `&or=(title.ilike.*${encodeURIComponent(qSearch)}*,jp_titles.ilike.*${encodeURIComponent(qSearch)}*,keywords.ilike.*${encodeURIComponent(qSearch)}*)`;
-          }
-          if (qGenre) {
-            searchUrl += `&genre.ov.{"${qGenre}"}`;
-          }
-          if (qStatus) {
-            searchUrl += `&status.eq.${encodeURIComponent(qStatus)}`;
-          }
-          if (qType) {
-            searchUrl += `&type.ov.{"${qType}"}`;
-          }
-          if (qPremiered) {
-            searchUrl += `&premiered.eq.${encodeURIComponent(qPremiered)}`;
-          }
-
-          searchUrl += `&limit=60`;
+          // Pull the whole master library table without limits or filter chains
+          const searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
           const res = await fetch(searchUrl, {
             method: 'GET',
@@ -78,7 +54,7 @@ export default {
           });
 
           if (!res.ok) {
-            throw new Error(`HTTP error ${res.status} performing search`);
+            throw new Error(`HTTP error ${res.status} performing search data dump`);
           }
 
           const data = await res.json();

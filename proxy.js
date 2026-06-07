@@ -30,7 +30,7 @@ export default {
         const type = url.searchParams.get("type");
         const premiered = url.searchParams.get("premiered");
 
-        // Rigid Parameter Cleaning Logic
+        // Explicit sanitization helper function
         function getValidParam(val) {
           if (!val) return null;
           const s = val.trim();
@@ -60,7 +60,7 @@ export default {
             searchUrl += `&status.ilike.%${encodeURIComponent(qStatus)}%`;
           }
           if (qType) {
-            searchUrl += `&type.ilike.%${encodeURIComponent(qType)}%`;
+            searchUrl += `&type.cs.[%22${qType}%22]`;
           }
           if (qPremiered) {
             searchUrl += `&premiered.ilike.%${encodeURIComponent(qPremiered)}%`;
@@ -340,7 +340,7 @@ function mapItem(item) {
     "s/ep/c": subValue,
     "d/ep/c": dubValue,
     status: item.status || '',
-    type: item.type ? String(item.type).toUpperCase().trim() : 'TV',
+    type: item.type ? String(item.type).replace(/[\[\]"]/g, "").toUpperCase().trim() : 'TV',
     jp_titles: item.jp_titles || '',
     keywords: item.keywords || '',
     aired: item.aired || '',

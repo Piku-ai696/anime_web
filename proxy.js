@@ -32,16 +32,18 @@ export default {
         const type = url.searchParams.get("type");
         const status = url.searchParams.get("status");
 
-        const isSearch = (search && search.trim() !== "") ||
-                         (genre && genre.trim() !== "") ||
-                         (aired && aired.trim() !== "") ||
-                         (premiered && premiered.trim() !== "") ||
-                         (studios && studios.trim() !== "") ||
-                         (type && type.trim() !== "") ||
-                         (status && status.trim() !== "");
+        const isSearchActive = (
+          (search && search.trim() !== "") ||
+          (genre && genre.trim() !== "") ||
+          (aired && aired.trim() !== "") ||
+          (premiered && premiered.trim() !== "") ||
+          (studios && studios.trim() !== "") ||
+          (type && type.trim() !== "") ||
+          (status && status.trim() !== "")
+        );
 
-        if (isSearch) {
-          // Dynamic URL Construction for advanced search
+        if (isSearchActive) {
+          // Dynamic URL Construction for advanced search targeting library table
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
           if (search && search.trim() !== "") {
@@ -67,7 +69,7 @@ export default {
             searchUrl += `&status.eq.${encodeURIComponent(status.trim())}`;
           }
 
-          searchUrl += `&limit=50`;
+          searchUrl += `&limit=60`;
 
           const res = await fetch(searchUrl, {
             method: 'GET',
@@ -97,7 +99,7 @@ export default {
           });
         }
 
-        // Default Dashboard Delivery
+        // Default Dashboard Delivery (when isSearchActive is false)
         const selectStr = `*`;
         const tables = [
           { key: 'hero_slider', table: 'hero_slider', order: 'rank_number.asc', limit: 10 },
@@ -341,7 +343,7 @@ function mapItem(item) {
     "s/ep/c": subValue,
     "d/ep/c": dubValue,
     status: item.status || '',
-    type: item.type || 'TV',
+    type: item.type ? String(item.type).toUpperCase().trim() : 'TV',
     jp_titles: item.jp_titles || '',
     keywords: item.keywords || '',
     aired: item.aired || '',

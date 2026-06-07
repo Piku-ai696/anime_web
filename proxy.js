@@ -30,7 +30,7 @@ export default {
         const type = url.searchParams.get("type");
         const premiered = url.searchParams.get("premiered");
 
-        // Explicit sanitization helper function
+        // Protective parameters sanitization helper function
         function getValidParam(val) {
           if (!val) return null;
           const s = val.trim();
@@ -47,20 +47,20 @@ export default {
         const isFiltering = !!(qSearch || qGenre || qStatus || qType || qPremiered);
 
         if (isFiltering) {
-          // Dynamic URL Construction for advanced search targeting library table
+          // Dynamic URL Construction targeting library table
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
           if (qSearch) {
             searchUrl += `&or=(title.ilike.*${encodeURIComponent(qSearch)}*,jp_titles.ilike.*${encodeURIComponent(qSearch)}*,keywords.ilike.*${encodeURIComponent(qSearch)}*)`;
           }
           if (qGenre) {
-            searchUrl += `&genre.cs.[%22${qGenre}%22]`;
+            searchUrl += `&genre.ov.{${qGenre}}`;
           }
           if (qStatus) {
-            searchUrl += `&status.ilike.%${encodeURIComponent(qStatus)}%`;
+            searchUrl += `&status.ov.{%22${encodeURIComponent(qStatus)}%22}`;
           }
           if (qType) {
-            searchUrl += `&type.cs.[%22${qType}%22]`;
+            searchUrl += `&type.ov.{%22${qType}%22}`;
           }
           if (qPremiered) {
             searchUrl += `&premiered.ilike.%${encodeURIComponent(qPremiered)}%`;

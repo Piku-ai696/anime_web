@@ -26,6 +26,7 @@ export default {
       try {
         const search = url.searchParams.get("search");
         const genre = url.searchParams.get("genre");
+        const aired = url.searchParams.get("aired");
         const premiered = url.searchParams.get("premiered");
         const studios = url.searchParams.get("studios");
         const type = url.searchParams.get("type");
@@ -33,6 +34,7 @@ export default {
 
         const isSearch = (search && search.trim() !== "") ||
                          (genre && genre.trim() !== "") ||
+                         (aired && aired.trim() !== "") ||
                          (premiered && premiered.trim() !== "") ||
                          (studios && studios.trim() !== "") ||
                          (type && type.trim() !== "") ||
@@ -47,19 +49,22 @@ export default {
             searchUrl += `&or=(title.ilike.*${encodeURIComponent(query)}*,jp_titles.ilike.*${encodeURIComponent(query)}*,keywords.ilike.*${encodeURIComponent(query)}*)`;
           }
           if (genre && genre.trim() !== "") {
-            searchUrl += `&genre.ilike.%${encodeURIComponent(genre.trim())}%`;
+            searchUrl += `&genre.cs.[%22${encodeURIComponent(genre.trim())}%22]`;
+          }
+          if (aired && aired.trim() !== "") {
+            searchUrl += `&aired.ilike.*${encodeURIComponent(aired.trim())}*`;
           }
           if (premiered && premiered.trim() !== "") {
             searchUrl += `&premiered.eq.${encodeURIComponent(premiered.trim())}`;
           }
           if (studios && studios.trim() !== "") {
-            searchUrl += `&studios.ilike.%${encodeURIComponent(studios.trim())}%`;
+            searchUrl += `&studios.ilike.*${encodeURIComponent(studios.trim())}*`;
           }
           if (type && type.trim() !== "") {
             searchUrl += `&type.eq.${encodeURIComponent(type.trim())}`;
           }
           if (status && status.trim() !== "") {
-            searchUrl += `&status.ilike.%${encodeURIComponent(status.trim())}%`;
+            searchUrl += `&status.eq.${encodeURIComponent(status.trim())}`;
           }
 
           searchUrl += `&limit=50`;

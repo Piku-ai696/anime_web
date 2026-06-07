@@ -21,12 +21,79 @@ export default {
 
     const url = new URL(request.url);
 
-    // Path Route A: '/api/home' (Dashboard Delivery Engine)
+    // Path Route A: '/api/home' (Dashboard Delivery Engine or Advanced Search)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        // Ensure the core table fetches use 'select=*' strings to retrieve these columns natively without structural omission
+        const searchQuery = url.searchParams.get("search");
+        const genre = url.searchParams.get("genre");
+        const aired = url.searchParams.get("aired");
+        const premiered = url.searchParams.get("premiered");
+        const studios = url.searchParams.get("studios");
+        const type = url.searchParams.get("type");
+        const status = url.searchParams.get("status");
+
+        const isSearch = searchQuery || genre || aired || premiered || studios || type || status;
+
+        if (isSearch) {
+          // Dynamic URL Construction for advanced search
+          let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
+
+          if (searchQuery && searchQuery.trim() !== '') {
+            const query = encodeURIComponent(searchQuery.trim());
+            searchUrl += `&or=(title.ilike.*${query}*,jp_titles.ilike.*${query}*,keywords.ilike.*${query}*)`;
+          }
+
+          if (genre && genre.trim() !== '') {
+            searchUrl += `&genre.ilike.%${encodeURIComponent(genre.trim())}%`;
+          }
+          if (premiered && premiered.trim() !== '') {
+            searchUrl += `&premiered.eq.${encodeURIComponent(premiered.trim())}`;
+          }
+          if (studios && studios.trim() !== '') {
+            searchUrl += `&studios.ilike.%${encodeURIComponent(studios.trim())}%`;
+          }
+          if (type && type.trim() !== '') {
+            searchUrl += `&type.eq.${encodeURIComponent(type.trim())}`;
+          }
+          if (status && status.trim() !== '') {
+            searchUrl += `&status.ilike.%${encodeURIComponent(status.trim())}%`;
+          }
+          if (aired && aired.trim() !== '') {
+            searchUrl += `&aired.ilike.%${encodeURIComponent(aired.trim())}%`;
+          }
+
+          searchUrl += `&limit=40`;
+
+          const res = await fetch(searchUrl, {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error ${res.status} performing search`);
+          }
+
+          const data = await res.json();
+          const mappedData = Array.isArray(data) ? data.map(mapItem).filter(x => x !== null) : [];
+
+          return new Response(JSON.stringify({
+            status: "success",
+            data: mappedData
+          }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+
+        // Default Dashboard Delivery
         const selectStr = `*`;
-        
         const tables = [
           { key: 'hero_slider', table: 'hero_slider', order: 'rank_number.asc', limit: 10 },
           { key: 'trending', table: 'trending', order: 'rank_number.asc', limit: 12 },
@@ -39,7 +106,6 @@ export default {
           { key: 'upcoming_anime', table: 'upcoming_anime', limit: 5 }
         ];
 
-        // Perform optimized parallel asynchronous fetches across these 9 tables
         const fetchPromises = tables.map(async (cfg) => {
           try {
             let queryUrl = `${supabaseUrl}/rest/v1/${cfg.table}?select=${encodeURIComponent(selectStr)}`;
@@ -64,7 +130,6 @@ export default {
             }
 
             const data = await res.json();
-            // Wrap result parsing inside defensive fallbacks and map items
             const mappedData = Array.isArray(data) ? data.map(mapItem).filter(x => x !== null) : [];
             return { key: cfg.key, data: mappedData };
           } catch (err) {
@@ -125,7 +190,6 @@ export default {
           });
         }
 
-        // Isolate the base anime entry using 'select=*' to pull all fields natively
         const selectStr = `*`;
         const detailUrl = `${supabaseUrl}/rest/v1/anime_list1?id=eq.${encodeURIComponent(slug)}&select=${encodeURIComponent(selectStr)}`;
         
@@ -160,7 +224,6 @@ export default {
         const mappedBaseAnime = mapItem(baseAnime);
         const baseIdString = baseAnime.id;
 
-        // Tokenize title and keyword parameters, filtering out filler words
         const cleanTokens = (str) => {
           if (!str || typeof str !== 'string') return [];
           const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
@@ -183,7 +246,6 @@ export default {
 
         let orClauses = [];
         
-        // Add title and keyword clauses to query matrix
         for (const token of tokens.slice(0, 10)) {
           orClauses.push(`title.ilike.%${encodeURIComponent(token)}%`);
           orClauses.push(`keywords.ilike.%${encodeURIComponent(token)}%`);
@@ -193,7 +255,7 @@ export default {
           recsUrl += `&or=(${orClauses.join(',')})`;
         }
 
-        recsUrl += `&limit=24`; // Capped strictly at 24 entries
+        recsUrl += `&limit=24`;
 
         const recsRes = await fetch(recsUrl, {
           method: 'GET',

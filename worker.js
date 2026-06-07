@@ -114,7 +114,7 @@ function extractCards(html) {
 
 // ── HOME ROUTE ───────────────────────────────────────────────────────────────
 async function handleHome() {
-  const cacheKey = 'home';
+  const cacheKey = '/home';
   const cached = memGet(cacheKey);
   if (cached) return jsonOk(cached);
 

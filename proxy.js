@@ -21,7 +21,7 @@ export default {
 
     const url = new URL(request.url);
 
-    // Path Route A: '/api/home' (Dashboard Delivery Engine or Streamlined Search Gateway)
+    // Path Route A: '/api/home' (Dashboard Delivery Engine or Cached Search Gateway)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const search = url.searchParams.get("search");
@@ -41,7 +41,40 @@ export default {
         const isFiltering = !!(getValidParam(search) || getValidParam(genre) || getValidParam(status) || getValidParam(type) || getValidParam(premiered));
 
         if (isFiltering) {
-          // Pull the whole master library table without limits or filter chains
+          // STATIC CACHE KEY IDENTIFIER URL
+          const cacheKey = "https://zyrox-proxy.internal/api/library_dump_cache";
+          
+          let cache = null;
+          try {
+            cache = caches.default;
+          } catch (e) {
+            console.warn("[Edge Worker] Caches API is not available in this environment.");
+          }
+
+          let cachedResponse = null;
+          if (cache) {
+            try {
+              cachedResponse = await cache.match(cacheKey);
+            } catch (e) {
+              console.error("[Edge Worker] Cache match error:", e);
+            }
+          }
+
+          if (cachedResponse) {
+            const cloned = cachedResponse.clone();
+            const responseHeaders = new Headers(cloned.headers);
+            // Ensure CORS headers are attached on cached hits
+            for (const [key, value] of Object.entries(corsHeaders)) {
+              responseHeaders.set(key, value);
+            }
+            return new Response(cloned.body, {
+              status: cloned.status,
+              statusText: cloned.statusText,
+              headers: responseHeaders
+            });
+          }
+
+          // If a cache miss occurs, pull the whole master table cleanly from Supabase
           const searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
           const res = await fetch(searchUrl, {
@@ -59,11 +92,27 @@ export default {
 
           const data = await res.json();
           const mappedData = Array.isArray(data) ? data.map(mapItem).filter(x => x !== null) : [];
-
-          return new Response(JSON.stringify({
+          
+          const finalPayload = JSON.stringify({
             status: "success",
             data: mappedData
-          }), {
+          });
+
+          if (cache) {
+            try {
+              const cacheHeaders = {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'public, max-age=3600',
+                ...corsHeaders
+              };
+              const responseToCache = new Response(finalPayload, { headers: cacheHeaders });
+              ctx.waitUntil(cache.put(cacheKey, responseToCache));
+            } catch (e) {
+              console.error("[Edge Worker] Cache write error:", e);
+            }
+          }
+
+          return new Response(finalPayload, {
             status: 200,
             headers: {
               'Content-Type': 'application/json',
@@ -232,7 +281,9 @@ export default {
         }
 
         if (orClauses.length > 0) {
-          recsUrl += `&or=(${orClauses.join(',')})`;
+          orClauses.forEach(clause => {
+            recsUrl += `&or=(${clause})`;
+          });
         }
 
         recsUrl += `&limit=24`;

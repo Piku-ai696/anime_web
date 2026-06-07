@@ -57,13 +57,13 @@ export default {
             searchUrl += `&genre.cs.[%22${qGenre}%22]`;
           }
           if (qStatus) {
-            searchUrl += `&status.eq.${encodeURIComponent(qStatus)}`;
+            searchUrl += `&status.ilike.%${encodeURIComponent(qStatus)}%`;
           }
           if (qType) {
-            searchUrl += `&type.eq.${encodeURIComponent(qType)}`;
+            searchUrl += `&type.ilike.%${encodeURIComponent(qType)}%`;
           }
           if (qPremiered) {
-            searchUrl += `&premiered.eq.${encodeURIComponent(qPremiered)}`;
+            searchUrl += `&premiered.ilike.%${encodeURIComponent(qPremiered)}%`;
           }
 
           searchUrl += `&limit=60`;

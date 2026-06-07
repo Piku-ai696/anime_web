@@ -54,13 +54,13 @@ export default {
             searchUrl += `&or=(title.ilike.*${encodeURIComponent(qSearch)}*,jp_titles.ilike.*${encodeURIComponent(qSearch)}*,keywords.ilike.*${encodeURIComponent(qSearch)}*)`;
           }
           if (qGenre) {
-            searchUrl += `&genre.ov.{${qGenre}}`;
+            searchUrl += `&genre.ov.{"${qGenre}"}`;
           }
           if (qStatus) {
-            searchUrl += `&status.ov.{%22${encodeURIComponent(qStatus)}%22}`;
+            searchUrl += `&status.ov.{"${qStatus}"}`;
           }
           if (qType) {
-            searchUrl += `&type.ov.{%22${qType}%22}`;
+            searchUrl += `&type.ov.{"${qType}"}`;
           }
           if (qPremiered) {
             searchUrl += `&premiered.ilike.%${encodeURIComponent(qPremiered)}%`;

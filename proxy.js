@@ -16,8 +16,8 @@ export default {
     }
 
     // Credentials & Permissions
-    const supabaseUrl = (env && env.SUPABASE_URL) || "https://ucgxzganknweqfucjqqw.supabase.co";
-    const supabaseKey = (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.SUPABASE_KEY) || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY";
+    const supabaseUrl = "https://ucgxzganknweqfucjqqw.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY";
 
     const url = new URL(request.url);
 
@@ -44,34 +44,16 @@ export default {
           // STATIC CACHE KEY IDENTIFIER URL
           const cacheKey = "https://zyrox-proxy.internal/api/library_dump_cache";
           
-          let cache = null;
-          try {
-            cache = caches.default;
-          } catch (e) {
-            console.warn("[Edge Worker] Caches API is not available in this environment.");
-          }
-
+          const cache = caches.default;
           let cachedResponse = null;
-          if (cache) {
-            try {
-              cachedResponse = await cache.match(cacheKey);
-            } catch (e) {
-              console.error("[Edge Worker] Cache match error:", e);
-            }
+          try {
+            cachedResponse = await cache.match(cacheKey);
+          } catch (e) {
+            console.warn("[Edge Worker] Cache match warning:", e.message);
           }
 
           if (cachedResponse) {
-            const cloned = cachedResponse.clone();
-            const responseHeaders = new Headers(cloned.headers);
-            // Ensure CORS headers are attached on cached hits
-            for (const [key, value] of Object.entries(corsHeaders)) {
-              responseHeaders.set(key, value);
-            }
-            return new Response(cloned.body, {
-              status: cloned.status,
-              statusText: cloned.statusText,
-              headers: responseHeaders
-            });
+            return cachedResponse.clone();
           }
 
           // If a cache miss occurs, pull the whole master table cleanly from Supabase
@@ -98,18 +80,19 @@ export default {
             data: mappedData
           });
 
-          if (cache) {
-            try {
-              const cacheHeaders = {
+          try {
+            // Save to cache with 1-hour Edge Memory Cache block and CORS headers
+            ctx.waitUntil(cache.put(cacheKey, new Response(finalPayload, {
+              headers: {
                 'Content-Type': 'application/json',
                 'Cache-Control': 'public, max-age=3600',
-                ...corsHeaders
-              };
-              const responseToCache = new Response(finalPayload, { headers: cacheHeaders });
-              ctx.waitUntil(cache.put(cacheKey, responseToCache));
-            } catch (e) {
-              console.error("[Edge Worker] Cache write error:", e);
-            }
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': '*'
+              }
+            })));
+          } catch (e) {
+            console.warn("[Edge Worker] Cache put warning:", e.message);
           }
 
           return new Response(finalPayload, {
@@ -131,8 +114,8 @@ export default {
           { key: 'most_viewed_day', table: 'most_viewed_day', order: 'rank_number.asc', limit: 10 },
           { key: 'most_viewed_week', table: 'most_viewed_week', order: 'rank_number.asc', limit: 10 },
           { key: 'most_viewed_month', table: 'most_viewed_month', order: 'rank_number.asc', limit: 10 },
-          { key: 'latest_episodes', table: 'latest_episodes', limit: 5 },
-          { key: 'upcoming_anime', table: 'upcoming_anime', limit: 5 }
+          { key: 'latest_episodes', table: 'latest_episodes', order: 'rank_number.asc', limit: 5 },
+          { key: 'upcoming_anime', table: 'upcoming_anime', order: 'rank_number.asc', limit: 5 }
         ];
 
         const fetchPromises = tables.map(async (cfg) => {
@@ -202,7 +185,7 @@ export default {
       }
     }
 
-    // Path Route B: '/api/anime' (Deep Library Keyword Discovery)
+    // Path Route B: '/api/anime' (Deep Recommendations Engine)
     if (url.pathname === '/api/anime' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const slug = url.searchParams.get("slug");
@@ -253,8 +236,29 @@ export default {
         const mappedBaseAnime = mapItem(baseAnime);
         const baseIdString = baseAnime.id;
 
-        const cleanTokens = (str) => {
-          if (!str || typeof str !== 'string') return [];
+        const cleanTokens = (val) => {
+          if (!val) return [];
+          let str = '';
+          if (Array.isArray(val)) {
+            str = val.join(' ');
+          } else if (typeof val === 'string') {
+            if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed)) {
+                  str = parsed.join(' ');
+                } else {
+                  str = val;
+                }
+              } catch (e) {
+                str = val;
+              }
+            } else {
+              str = val;
+            }
+          } else {
+            str = String(val);
+          }
           const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
           return str
             .toLowerCase()
@@ -276,14 +280,12 @@ export default {
         let orClauses = [];
         
         for (const token of tokens.slice(0, 10)) {
-          orClauses.push(`title.ilike.%${encodeURIComponent(token)}%`);
-          orClauses.push(`keywords.ilike.%${encodeURIComponent(token)}%`);
+          orClauses.push(`title.ilike.%25${encodeURIComponent(token)}%25`);
+          orClauses.push(`keywords.ilike.%25${encodeURIComponent(token)}%25`);
         }
 
         if (orClauses.length > 0) {
-          orClauses.forEach(clause => {
-            recsUrl += `&or=(${clause})`;
-          });
+          recsUrl += `&or=(${orClauses.join(',')})`;
         }
 
         recsUrl += `&limit=24`;
@@ -355,8 +357,10 @@ export default {
  */
 function mapItem(item) {
   if (!item) return null;
-  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 0;
-  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 0;
+  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 
+                   (item["s/ep/c"] !== undefined && item["s/ep/c"] !== null ? item["s/ep/c"] : 0);
+  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 
+                   (item["d/ep/c"] !== undefined && item["d/ep/c"] !== null ? item["d/ep/c"] : 0);
   return {
     id: item.id || '',
     title: item.title || '',

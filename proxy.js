@@ -24,45 +24,56 @@ export default {
     // Path Route A: '/api/home' (Dashboard Delivery Engine or Advanced Search)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        const getParam = (name) => {
-          const val = url.searchParams.get(name);
-          return (val && val.trim() !== "") ? val.trim() : null;
-        };
+        const search = url.searchParams.get("search");
+        const genre = url.searchParams.get("genre");
+        const aired = url.searchParams.get("aired");
+        const premiered = url.searchParams.get("premiered");
+        const studios = url.searchParams.get("studios");
+        const type = url.searchParams.get("type");
+        const status = url.searchParams.get("status");
 
-        const search = getParam("search");
-        const genre = getParam("genre");
-        const aired = getParam("aired");
-        const premiered = getParam("premiered");
-        const studios = getParam("studios");
-        const type = getParam("type");
-        const status = getParam("status");
+        // Explicit sanitization helper function to filter out placeholder text
+        function cleanFilterParam(val) {
+          if (!val) return null;
+          const s = val.trim();
+          if (s === "" || s.toLowerCase().includes("choose") || s.toLowerCase() === "all" || s.toLowerCase() === "select") return null;
+          return s;
+        }
 
-        const isSearchActive = !!(search || genre || aired || premiered || studios || type || status);
+        const activeSearch = cleanFilterParam(search);
+        const activeGenre = cleanFilterParam(genre);
+        const activeAired = cleanFilterParam(aired);
+        const activePremiered = cleanFilterParam(premiered);
+        const activeStudios = cleanFilterParam(studios);
+        const activeType = cleanFilterParam(type);
+        const activeStatus = cleanFilterParam(status);
+
+        const isSearchActive = !!(activeSearch || activeGenre || activeAired || activePremiered || activeStudios || activeType || activeStatus);
 
         if (isSearchActive) {
           // Dynamic URL Construction for advanced search targeting library table
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
-          if (search) {
-            searchUrl += `&or=(title.ilike.*${encodeURIComponent(search.trim())}*,jp_titles.ilike.*${encodeURIComponent(search.trim())}*,keywords.ilike.*${encodeURIComponent(search.trim())}*)`;
+          if (activeSearch) {
+            searchUrl += `&or=(title.ilike.*${encodeURIComponent(activeSearch)}*,jp_titles.ilike.*${encodeURIComponent(activeSearch)}*,keywords.ilike.*${encodeURIComponent(activeSearch)}*)`;
           }
-          if (genre) {
-            searchUrl += `&genre.cs.[%22${encodeURIComponent(genre.trim())}%22]`;
+          if (activeGenre) {
+            searchUrl += `&genre.cs.[%22${encodeURIComponent(activeGenre)}%22]`;
           }
-          if (aired) {
-            searchUrl += `&aired.ilike.%${encodeURIComponent(aired.trim())}%`;
+          if (activeAired) {
+            searchUrl += `&aired.ilike.%${encodeURIComponent(activeAired)}%`;
           }
-          if (premiered) {
-            searchUrl += `&premiered.eq.${encodeURIComponent(premiered.trim())}`;
+          if (activePremiered) {
+            searchUrl += `&premiered.eq.${encodeURIComponent(activePremiered)}`;
           }
-          if (studios) {
-            searchUrl += `&studios.ilike.%${encodeURIComponent(studios.trim())}%`;
+          if (activeStudios) {
+            searchUrl += `&studios.ilike.%${encodeURIComponent(activeStudios)}%`;
           }
-          if (type) {
-            searchUrl += `&type.eq.${encodeURIComponent(type.trim())}`;
+          if (activeType) {
+            searchUrl += `&type.eq.${encodeURIComponent(activeType)}`;
           }
-          if (status) {
-            searchUrl += `&status.eq.${encodeURIComponent(status.trim())}`;
+          if (activeStatus) {
+            searchUrl += `&status.ilike.%${encodeURIComponent(activeStatus)}%`;
           }
 
           searchUrl += `&limit=60`;

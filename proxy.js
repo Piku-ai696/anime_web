@@ -57,13 +57,13 @@ export default {
             searchUrl += `&genre.ov.{"${qGenre}"}`;
           }
           if (qStatus) {
-            searchUrl += `&status.ov.{"${qStatus}"}`;
+            searchUrl += `&status.eq.${encodeURIComponent(qStatus)}`;
           }
           if (qType) {
             searchUrl += `&type.ov.{"${qType}"}`;
           }
           if (qPremiered) {
-            searchUrl += `&premiered.ilike.%${encodeURIComponent(qPremiered)}%`;
+            searchUrl += `&premiered.eq.${encodeURIComponent(qPremiered)}`;
           }
 
           searchUrl += `&limit=60`;

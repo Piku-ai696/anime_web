@@ -24,45 +24,45 @@ export default {
     // Path Route A: '/api/home' (Dashboard Delivery Engine or Advanced Search)
     if (url.pathname === '/api/home' && (request.method === 'GET' || request.method === 'POST')) {
       try {
-        const searchQuery = url.searchParams.get("search");
+        const search = url.searchParams.get("search");
         const genre = url.searchParams.get("genre");
-        const aired = url.searchParams.get("aired");
         const premiered = url.searchParams.get("premiered");
         const studios = url.searchParams.get("studios");
         const type = url.searchParams.get("type");
         const status = url.searchParams.get("status");
 
-        const isSearch = searchQuery || genre || aired || premiered || studios || type || status;
+        const isSearch = (search && search.trim() !== "") ||
+                         (genre && genre.trim() !== "") ||
+                         (premiered && premiered.trim() !== "") ||
+                         (studios && studios.trim() !== "") ||
+                         (type && type.trim() !== "") ||
+                         (status && status.trim() !== "");
 
         if (isSearch) {
           // Dynamic URL Construction for advanced search
           let searchUrl = `${supabaseUrl}/rest/v1/anime_list1?select=*`;
 
-          if (searchQuery && searchQuery.trim() !== '') {
-            const query = encodeURIComponent(searchQuery.trim());
-            searchUrl += `&or=(title.ilike.*${query}*,jp_titles.ilike.*${query}*,keywords.ilike.*${query}*)`;
+          if (search && search.trim() !== "") {
+            const query = search.trim();
+            searchUrl += `&or=(title.ilike.*${encodeURIComponent(query)}*,jp_titles.ilike.*${encodeURIComponent(query)}*,keywords.ilike.*${encodeURIComponent(query)}*)`;
           }
-
-          if (genre && genre.trim() !== '') {
+          if (genre && genre.trim() !== "") {
             searchUrl += `&genre.ilike.%${encodeURIComponent(genre.trim())}%`;
           }
-          if (premiered && premiered.trim() !== '') {
+          if (premiered && premiered.trim() !== "") {
             searchUrl += `&premiered.eq.${encodeURIComponent(premiered.trim())}`;
           }
-          if (studios && studios.trim() !== '') {
+          if (studios && studios.trim() !== "") {
             searchUrl += `&studios.ilike.%${encodeURIComponent(studios.trim())}%`;
           }
-          if (type && type.trim() !== '') {
+          if (type && type.trim() !== "") {
             searchUrl += `&type.eq.${encodeURIComponent(type.trim())}`;
           }
-          if (status && status.trim() !== '') {
+          if (status && status.trim() !== "") {
             searchUrl += `&status.ilike.%${encodeURIComponent(status.trim())}%`;
           }
-          if (aired && aired.trim() !== '') {
-            searchUrl += `&aired.ilike.%${encodeURIComponent(aired.trim())}%`;
-          }
 
-          searchUrl += `&limit=40`;
+          searchUrl += `&limit=50`;
 
           const res = await fetch(searchUrl, {
             method: 'GET',
@@ -324,8 +324,8 @@ export default {
  */
 function mapItem(item) {
   if (!item) return null;
-  const subValue = item["s/ep/c"] !== undefined && item["s/ep/c"] !== null ? item["s/ep/c"] : 0;
-  const dubValue = item["d/ep/c"] !== undefined && item["d/ep/c"] !== null ? item["d/ep/c"] : 0;
+  const subValue = item["s / ep / c"] !== undefined && item["s / ep / c"] !== null ? item["s / ep / c"] : 0;
+  const dubValue = item["d / ep / c"] !== undefined && item["d / ep / c"] !== null ? item["d / ep / c"] : 0;
   return {
     id: item.id || '',
     title: item.title || '',

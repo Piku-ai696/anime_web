@@ -114,8 +114,8 @@ export default {
           { key: 'most_viewed_day', table: 'most_viewed_day', order: 'rank_number.asc', limit: 10 },
           { key: 'most_viewed_week', table: 'most_viewed_week', order: 'rank_number.asc', limit: 10 },
           { key: 'most_viewed_month', table: 'most_viewed_month', order: 'rank_number.asc', limit: 10 },
-          { key: 'latest_episodes', table: 'latest_episodes', order: 'rank_number.asc', limit: 5 },
-          { key: 'upcoming_anime', table: 'upcoming_anime', order: 'rank_number.asc', limit: 5 }
+          { key: 'latest_episodes', table: 'latest_episodes', limit: 5 },
+          { key: 'upcoming_anime', table: 'upcoming_anime', limit: 5 }
         ];
 
         const fetchPromises = tables.map(async (cfg) => {

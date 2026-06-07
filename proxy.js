@@ -30,11 +30,11 @@ export default {
         const type = url.searchParams.get("type");
         const premiered = url.searchParams.get("premiered");
 
-        // Defensive function to catch and completely discard unselected UI placeholder values
+        // Rigid Parameter Cleaning Logic
         function getValidParam(val) {
           if (!val) return null;
           const s = val.trim();
-          if (s === "" || s.toLowerCase().includes("choose") || s.toLowerCase() === "all" || s.toLowerCase() === "select") return null;
+          if (s === "" || s.toLowerCase().includes("choose") || s.toLowerCase() === "all" || s.toLowerCase() === "select" || s.startsWith("Choose")) return null;
           return s;
         }
 
@@ -54,7 +54,7 @@ export default {
             searchUrl += `&or=(title.ilike.*${encodeURIComponent(qSearch)}*,jp_titles.ilike.*${encodeURIComponent(qSearch)}*,keywords.ilike.*${encodeURIComponent(qSearch)}*)`;
           }
           if (qGenre) {
-            searchUrl += `&genre.cs.[%22${encodeURIComponent(qGenre)}%22]`;
+            searchUrl += `&genre.cs.[%22${qGenre}%22]`;
           }
           if (qStatus) {
             searchUrl += `&status.eq.${encodeURIComponent(qStatus)}`;

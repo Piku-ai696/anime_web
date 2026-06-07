@@ -185,7 +185,7 @@ export default {
       }
     }
 
-    // Path Route B: '/api/anime' (Deep Recommendations Engine)
+    // Path Route B: '/api/anime' (Jikan Relation Extractor Pipeline)
     if (url.pathname === '/api/anime' && (request.method === 'GET' || request.method === 'POST')) {
       try {
         const slug = url.searchParams.get("slug");
@@ -234,76 +234,58 @@ export default {
 
         const baseAnime = list[0];
         const mappedBaseAnime = mapItem(baseAnime);
-        const baseIdString = baseAnime.id;
+        const baseMalId = baseAnime.mal_id;
 
-        const cleanTokens = (val) => {
-          if (!val) return [];
-          let str = '';
-          if (Array.isArray(val)) {
-            str = val.join(' ');
-          } else if (typeof val === 'string') {
-            if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
-              try {
-                const parsed = JSON.parse(val);
-                if (Array.isArray(parsed)) {
-                  str = parsed.join(' ');
-                } else {
-                  str = val;
-                }
-              } catch (e) {
-                str = val;
+        let mappedDatabaseRelatedEntries = [];
+
+        if (baseMalId) {
+          const jikanUrl = `https://api.jikan.moe/v4/anime/${baseMalId}/relations`;
+          
+          try {
+            const jikanRes = await fetch(jikanUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ZyroXEdge/1.0'
               }
-            } else {
-              str = val;
+            });
+
+            if (jikanRes.ok) {
+              const jikanPayload = await jikanRes.json();
+              if (jikanPayload && Array.isArray(jikanPayload.data)) {
+                const malIdsSet = new Set();
+                for (const relation of jikanPayload.data) {
+                  if (relation && Array.isArray(relation.entry)) {
+                    for (const entry of relation.entry) {
+                      if (entry && entry.type === "anime" && entry.mal_id) {
+                        malIdsSet.add(Number(entry.mal_id));
+                      }
+                    }
+                  }
+                }
+
+                const savedMalIdsList = Array.from(malIdsSet);
+                if (savedMalIdsList.length > 0) {
+                  const queryUrl = `${supabaseUrl}/rest/v1/anime_list1?select=${encodeURIComponent(selectStr)}&mal_id.in.(${savedMalIdsList.join(',')})&id=neq.${encodeURIComponent(slug)}`;
+                  
+                  const dbRes = await fetch(queryUrl, {
+                    method: 'GET',
+                    headers: {
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+
+                  if (dbRes.ok) {
+                    const dbData = await dbRes.json();
+                    if (Array.isArray(dbData)) {
+                      mappedDatabaseRelatedEntries = dbData.map(mapItem).filter(x => x !== null);
+                    }
+                  }
+                }
+              }
             }
-          } else {
-            str = String(val);
-          }
-          const fillers = new Set(["the", "and", "for", "with", "from", "you", "that", "this", "sub", "dub", "season", "part", "movie", "series"]);
-          return str
-            .toLowerCase()
-            .split(/[\s,]+/)
-            .map(t => t.trim())
-            .filter(t => t.length > 2 && !fillers.has(t));
-        };
-
-        const tokens = [
-          ...new Set([
-            ...cleanTokens(baseAnime.title),
-            ...cleanTokens(baseAnime.keywords)
-          ])
-        ];
-
-        let recommendations = [];
-        let recsUrl = `${supabaseUrl}/rest/v1/anime_list1?id=neq.${encodeURIComponent(baseIdString)}&select=${encodeURIComponent(selectStr)}`;
-
-        let orClauses = [];
-        
-        for (const token of tokens.slice(0, 10)) {
-          orClauses.push(`title.ilike.%25${encodeURIComponent(token)}%25`);
-          orClauses.push(`keywords.ilike.%25${encodeURIComponent(token)}%25`);
-        }
-
-        if (orClauses.length > 0) {
-          recsUrl += `&or=(${orClauses.join(',')})`;
-        }
-
-        recsUrl += `&limit=24`;
-
-        const recsRes = await fetch(recsUrl, {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (recsRes.ok) {
-          const rawRecs = await recsRes.json();
-          if (Array.isArray(rawRecs)) {
-            const mappedRecs = rawRecs.map(mapItem).filter(x => x !== null);
-            recommendations = shuffle(mappedRecs);
+          } catch (jikanErr) {
+            console.error("[Edge Worker] Jikan API relations error:", jikanErr);
           }
         }
 
@@ -311,7 +293,7 @@ export default {
           status: "success",
           data: {
             anime_details: mappedBaseAnime,
-            recommendations: recommendations
+            recommendations: mappedDatabaseRelatedEntries
           }
         }), {
           status: 200,

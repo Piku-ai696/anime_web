@@ -1,140 +1,165 @@
-import time
-import requests
-from supabase import create_client, Client
+import { createClient } from '@supabase/supabase-js';
+import fetch from 'node-fetch';
 
-# 1. Database Configuration Setup
-SUPABASE_URL = "https://ucgxzganknweqfucjqqw.supabase.co"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY"
+// 1. Database Configuration Setup
+const SUPABASE_URL = "https://ucgxzganknweqfucjqqw.supabase.co";
+const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY";
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: { persistSession: false }
+});
 
-# Configurable Scraping Ranges
-START_ID = 1
-END_ID = 9000
-RATE_LIMIT_DELAY = 2.2  # Strict delay interval threshold in seconds
+// Configurable Scraping Ranges
+const START_ID = 1;
+const END_ID = 9000;
+const RATE_LIMIT_DELAY = 2200; // 2.2 seconds in milliseconds
 
-def get_finished_anime_ids():
-    """
-    Fetches all anikoto_id values from rows where status is 'Finished Airing'.
-    These will be safely ignored to save time and API bandwidth.
-    """
-    print("🔍 Scanning database for already finished anime entries...")
-    try:
-        response = supabase.table("ultimate") \
-                           .select("anikoto_id") \
-                           .eq("status", "Finished Airing") \
-                           .execute()
-        
-        finished_ids = {int(row["anikoto_id"]) for row in response.data if row.get("anikoto_id") is not None}
-        print(f"✅ Found {len(finished_ids)} finished anime rows. These will be skipped.")
-        return finished_ids
-    except Exception as e:
-        print(f"⚠️ Error fetching existing rows: {e}. Starting with an empty exclusion list.")
-        return set()
+// Simple utility function for dynamic, precise delay tracking
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-def parse_and_upsert(api_data):
-    """
-    Flattens the nested Anikoto API JSON response payload 
-    and saves/updates it into the public.ultimate table.
-    """
-    anime = api_data.get("data", {}).get("anime", {})
-    if not anime or not anime.get("mal_id"):
-        return False
+/**
+ * Fetches all anikoto_id values from rows where status is 'Finished Airing'.
+ * These will be safely ignored to save time and API bandwidth.
+ */
+async function getFinishedAnimeIds() {
+  console.log("🔍 Scanning database for already finished anime entries...");
+  try {
+    const { data, error } = await supabase
+      .from("ultimate")
+      .select("anikoto_id")
+      .eq("status", "Finished Airing");
 
-    # Extract terms arrays safely and turn into strings
-    terms = anime.get("terms_by_type", {})
-    genre_list = terms.get("genre", [])
-    studio_list = terms.get("studios", [])
-    type_list = terms.get("type", [])
+    if (error) throw error;
 
-    genre_str = ", ".join(genre_list) if isinstance(genre_list, list) else None
-    studios_str = ", ".join(studio_list) if isinstance(studio_list, list) else None
-    anime_type = type_list[0] if isinstance(type_list, list) and len(type_list) > 0 else None
+    // Extract numbers into a JavaScript Set for O(1) lightning-fast lookups
+    const finishedIds = new Set(
+      data
+        .filter(row => row.anikoto_id !== null && row.anikoto_id !== undefined)
+        .map(row => Math.floor(Number(row.anikoto_id)))
+    );
 
-    # Construct row mapped matching your exact PostgreSQL schema
-    row_data = {
-        "mal_id": int(anime["mal_id"]), # Primary Key
-        "anikoto_id": int(anime["id"]),  # Saved from the response id as requested
-        "slug": anime.get("slug"),
-        "title": anime.get("title"),
-        "alternative": anime.get("alternative"),
-        "titles": anime.get("titles"),
-        "native": anime.get("native"),
-        "rating": anime.get("rating"),
-        "poster": anime.get("poster"),
-        "is_sub": int(anime["is_sub"]) if anime.get("is_sub") is not None else 0,
-        "is_dub": int(anime["is_dub"]) if anime.get("is_dub") is not None else 0,
-        "description": anime.get("description"),
-        "aired": anime.get("aired"),
-        "season": anime.get("season"),
-        "year": str(anime["year"]) if anime.get("year") is not None else None,
-        "duration": anime.get("duration"),
-        "status": anime.get("status"),
-        "score": str(anime["score"]) if anime.get("score") is not None else None,
-        "episodes": int(anime["episodes"]) if anime.get("episodes") else 0,
-        "ani_id": int(anime["ani_id"]) if anime.get("ani_id") else None,
-        "source": anime.get("source"),
-        "background_image": anime.get("background_image"),
-        "genre": genre_str,
-        "studios": studios_str,
-        "type": anime_type,
-        "relations": None 
+    console.log(`✅ Found ${finishedIds.size} finished anime rows. These will be skipped.`);
+    return finishedIds;
+  } catch (err) {
+    console.warn(`⚠️ Error fetching existing rows: ${err.message}. Starting with an empty exclusion list.`);
+    return new Set();
+  }
+}
+
+/**
+ * Flattens the nested Anikoto API JSON response payload 
+ * and saves/updates it into the public.ultimate table.
+ */
+async function parseAndUpsert(apiData) {
+  const anime = apiData?.data?.anime;
+  if (!anime || !anime.mal_id) return false;
+
+  // Extract terms arrays safely and turn into strings
+  const terms = anime.terms_by_type || {};
+  const genreList = terms.genre || [];
+  const studioList = terms.studios || [];
+  const typeList = terms.type || [];
+
+  const genreStr = Array.isArray(genreList) ? genreList.join(', ') : null;
+  const studiosStr = Array.isArray(studioList) ? studioList.join(', ') : null;
+  const animeType = (Array.isArray(typeList) && typeList.length > 0) ? typeList[0] : null;
+
+  // Construct row layout matching your exact PostgreSQL schema
+  const rowData = {
+    mal_id: Math.floor(Number(anime.mal_id)), // Primary Key
+    anikoto_id: Math.floor(Number(anime.id)),  // Saved from the response id field
+    slug: anime.slug || null,
+    title: anime.title || null,
+    alternative: anime.alternative || null,
+    titles: anime.titles || null,
+    native: anime.native || null,
+    rating: anime.rating || null,
+    poster: anime.poster || null,
+    is_sub: anime.is_sub !== null && anime.is_sub !== undefined ? Math.floor(Number(anime.is_sub)) : 0,
+    is_dub: anime.is_dub !== null && anime.is_dub !== undefined ? Math.floor(Number(anime.is_dub)) : 0,
+    description: anime.description || null,
+    aired: anime.aired || null,
+    season: anime.season || null,
+    year: anime.year !== null && anime.year !== undefined ? String(anime.year) : null, // Match text column format
+    duration: anime.duration || null,
+    status: anime.status || null,
+    score: anime.score !== null && anime.score !== undefined ? String(anime.score) : null,
+    episodes: anime.episodes ? Math.floor(Number(anime.episodes)) : 0,
+    ani_id: anime.ani_id ? Math.floor(Number(anime.ani_id)) : null,
+    source: anime.source || null,
+    background_image: anime.background_image || null,
+    genre: genreStr,
+    studios: studiosStr,
+    type: animeType,
+    relations: null // Keeping explicitly empty as requested
+  };
+
+  try {
+    // Upsert transaction target execution
+    const { error } = await supabase
+      .from("ultimate")
+      .upsert(rowData, { onConflict: "mal_id" });
+
+    if (error) throw error;
+    console.log(`   Saved: ${rowData.title} (MAL ID: ${rowData.mal_id}) -> Status: ${rowData.status}`);
+    return true;
+  } catch (err) {
+    console.error(`   ❌ Database write error for ${anime.title || 'Unknown'}: ${err.message}`);
+    return false;
+  }
+}
+
+async function startScraper() {
+  // Step 1: Initialize list of already completed/finished IDs
+  const ignoredIds = await getFinishedAnimeIds();
+
+  print(`\n🚀 Launching Scraper pipeline loop across IDs ${START_ID} to ${END_ID}...`);
+
+  // Step 2: Loop comprehensively across your entire targeted range
+  for (let currentId = START_ID; currentId <= END_ID; currentId++) {
+    
+    // Check if current ID falls inside our pre-parsed exclusion set matrix
+    if (ignoredIds.has(currentId)) {
+      continue;
     }
 
-    try:
-        supabase.table("ultimate").upsert(row_data, on_conflict="mal_id").execute()
-        print(f"   Saved: {row_data['title']} (MAL ID: {row_data['mal_id']}) -> Status: {row_data['status']}")
-        return True
-    except Exception as e:
-        print(f"   ❌ Database write error for {anime.get('title')}: {e}")
-        return False
+    console.log(`🌐 Querying Anikoto ID: ${currentId}...`);
+    const apiUrl = `http://anikotoapi.site/series/${currentId}`;
+    const startTime = Date.now();
 
-def start_scraper():
-    # Step 1: Initialize list of already completed/finished IDs
-    ignored_ids = get_finished_anime_ids()
-    
-    print(f"\n🚀 Launching Scraper pipeline loop across IDs {START_ID} to {END_ID}...")
-    
-    # Step 2: Loop comprehensively across your entire targeted range
-    for current_id in range(START_ID, END_ID + 1):
-        
-        # Check if the current ID matches a cached Finished row
-        if current_id in ignored_ids:
-            continue
-            
-        print(f"🌐 Querying Anikoto ID: {current_id}...")
-        api_url = f"http://anikotoapi.site/series/{current_id}"
-        
-        try:
-            start_time = time.time()
-            response = requests.get(api_url, timeout=10)
-            
-            if response.status_code == 200:
-                json_data = response.json()
-                
-                # --- CRUCIAL EXTRA CHECK LOGIC ---
-                # If the status is 200 but the inner response parameters explicitly flag "ok": false, skip entirely!
-                if not json_data.get("ok"):
-                    print(f"   ⏩ Skipped: ID {current_id} returned 'ok': false (No valid anime data available here).")
-                else:
-                    # If "ok": true, proceed with data parsing and database ingestion
-                    parse_and_upsert(json_data)
-                    
-            elif response.status_code == 404:
-                print(f"   ℹ️ ID {current_id} returned 404 (No anime exists at this tracking link)")
-            else:
-                print(f"   ⚠️ Received unusual status code {response.status_code} for ID {current_id}")
-                
-        except Exception as e:
-            print(f"   ❌ Network communication error on ID {current_id}: {e}")
-            
-        # Calculate operational overhead to apply absolute, flawless 2.2-sec rate limiting
-        elapsed_time = time.time() - start_time
-        sleep_needed = max(0.0, RATE_LIMIT_DELAY - elapsed_time)
-        if sleep_needed > 0:
-            time.sleep(sleep_needed)
+    try {
+      const response = await fetch(apiUrl, { timeout: 10000 });
 
-    print("\n🎉 Scraper iteration sequence completed successfully!")
+      if (response.status === 200) {
+        const jsonData = await response.json();
 
-if __name__ == "__main__":
-    start_scraper()
+        // --- CRUCIAL EXTRA CHECK LOGIC ---
+        // If the server explicitly flags "ok": false, bypass execution steps instantly!
+        if (!jsonData || jsonData.ok !== true) {
+          console.log(`   慢 Skipped: ID ${currentId} returned 'ok': false (No valid anime data available here).`);
+        } else {
+          // Process clean data entries
+          await parseAndUpsert(jsonData);
+        }
+      } else if (response.status === 404) {
+        console.log(`   ℹ️ ID ${currentId} returned 404 (No anime exists at this tracking link)`);
+      } else {
+        console.log(`   ⚠️ Received unusual status code ${response.status} for ID ${currentId}`);
+      }
+    } catch (err) {
+      console.error(`   ❌ Network communication error on ID ${currentId}: ${err.message}`);
+    }
+
+    // Precise Rate Limit Safety Valve Calculation
+    const elapsedTime = Date.now() - startTime;
+    const sleepNeeded = Math.max(0, RATE_LIMIT_DELAY - elapsedTime);
+    if (sleepNeeded > 0) {
+      await sleep(sleepNeeded);
+    }
+  }
+
+  console.log("\n🎉 Scraper iteration sequence completed successfully!");
+}
+
+// Fire the program engine
+startScraper();

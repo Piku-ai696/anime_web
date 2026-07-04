@@ -32,7 +32,7 @@
         <label>Supabase URL</label>
         <input type="text" id="sbUrl" value="https://ucgxzganknweqfucjqqw.supabase.co">
         <label>Supabase Service Role Key</label>
-        <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
+        <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MT7NzkEOTk3Mzd9.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
         
         <label>CORS Proxy URL (Required to bypass browser blocking)</label>
         <input type="text" id="proxyUrl" value="https://cors-anywhere.herokuapp.com/" placeholder="e.g., https://my-cors-proxy.com/">
@@ -91,11 +91,10 @@ async function toggleScraper() {
         return;
     }
 
-    // Initialize the Supabase Client natively using the loaded script global context
     supabaseClient = supabase.createClient(url, key);
     isRunning = true;
     document.getElementById("actionBtn").innerText = "Pause Scraper";
-    logElement.innerHTML = ""; // Clear console terminal screen
+    logElement.innerHTML = ""; 
     log("[LAUNCH] Core automation wrapper triggered successfully.", "info");
 
     try {
@@ -152,7 +151,6 @@ async function fetchCatalogBatch(offset) {
         variables: { filter: {}, sort: [{ field: "POPULARITY", direction: "DESC" }], limit: 30, offset: offset }
     };
 
-    // Micro-delay simulation pace to protect endpoints proactively
     await sleep(randomInterval(1000, 1500));
 
     const res = await fetch(proxy + targetUrl, {
@@ -194,7 +192,6 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
         const { ep, type, retries, backoff } = task;
         const key = `ep_${ep}_${type}`;
 
-        // Proactive Pace Throttle
         await sleep(randomInterval(1200, 1800));
 
         const sourceUrl = `https://pp.animex.one/rest/api/sources?id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mochi`;
@@ -206,7 +203,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
                 if (retries < 2) {
                     task.retries++;
                     const wait = backoff + randomInterval(2000, 4000);
-                    log(`  [!] Rate limited on {key}. Sleeping lane for ${(wait/1000).toFixed(2)}s...`, "warning");
+                    log(`  [!] Rate limited on ${key}. Sleeping lane for ${(wait/1000).toFixed(2)}s...`, "warning");
                     await sleep(wait);
                     task.backoff *= 2;
                     const pos = Math.min(6, taskQueue.length);
@@ -235,7 +232,6 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
                 }
             }
             
-            // Requeue execution logic on common bad responses
             if (retries < 2) {
                 task.retries++;
                 const pos = Math.min(6, taskQueue.length);
@@ -268,7 +264,8 @@ async function runScraperLoop() {
         log(`\n=================== FETCHING BATCH OFFSET: ${offset} ===================`, "info");
         document.getElementById("offsetInput").value = offset;
 
-        const catalog = await fetch_catalog_batch(offset);
+        // FIXED TYPO HERE: Changed fetch_catalog_batch to fetchCatalogBatch
+        const catalog = await fetchCatalogBatch(offset);
         const items = catalog.items || [];
         hasNextPage = catalog.hasNextPage || false;
 
@@ -304,9 +301,9 @@ async function runScraperLoop() {
             }
 
             const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
-            log(`\n${label} ${title} (ID: {anilistId}) | Missing scan validation triggered...`, "info");
+            log(`\n${label} ${title} (ID: ${anilistId}) | Missing scan validation triggered...`, "info");
 
-            const pipeline = await process_episodes_pipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
+            const pipeline = await processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
             
             if (!pipeline.success) {
                 log(`[INTERRUPTED] Flow dropped manually. Data sync dropped for ${title}.`, "interrupted");
@@ -318,7 +315,6 @@ async function runScraperLoop() {
                 continue;
             }
 
-            // Save structured payload arrays safely to Supabase
             try {
                 const cleanSlug = uniqueSlug.includes('-') ? uniqueSlug.substring(0, uniqueSlug.lastIndexOf('-')) : uniqueSlug;
                 
@@ -348,7 +344,6 @@ async function runScraperLoop() {
         }
 
         offset += 30;
-        // Rest briefly between 3.5 to 5.5s before requesting next catalog batch page block
         await sleep(randomInterval(3500, 5500));
     }
 

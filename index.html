@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Paced Anime Scraper Panel</title>
-    <!-- Load Supabase directly via CDN - Eliminates all pip install errors -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121214; color: #e1e1e6; padding: 20px; max-width: 800px; margin: 0 auto; }
@@ -13,7 +12,6 @@
         input:focus { border-color: #7c4dff; outline: none; }
         button { background: #7c4dff; cursor: pointer; font-weight: bold; border: none; margin-top: 15px; }
         button:hover { background: #9466ff; }
-        button:disabled { background: #48484a; cursor: not-allowed; }
         #terminal { background: #000; font-family: "Courier New", Courier, monospace; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; font-size: 13px; line-height: 1.4; border: 1px solid #29292e; }
         .success { color: #00e676; }
         .interrupted { color: #ff5252; }
@@ -31,12 +29,11 @@
         <h3>Configuration & Credentials</h3>
         <label>Supabase URL</label>
         <input type="text" id="sbUrl" value="https://ucgxzganknweqfucjqqw.supabase.co">
-        <label>Supabase Service Role Key</label>
-        <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MT7NzkEOTk3Mzd9.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
+        <label>Supabase Key</label>
+        <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
         
-        <label>CORS Proxy URL (Required to bypass browser blocking)</label>
-        <input type="text" id="proxyUrl" value="https://cors-anywhere.herokuapp.com/" placeholder="e.g., https://my-cors-proxy.com/">
-        <small style="color:#8e8e93;">* Note: If using public cors-anywhere, visit the proxy link once to activate access on your device.</small>
+        <label>PHP Backend URL Link</label>
+        <input type="text" id="phpBackendUrl" value="http://yourdomain.com/fetch.php" placeholder="e.g., https://my-webserver.com/fetch.php">
         
         <div class="row" style="margin-top: 15px;">
             <div>
@@ -67,27 +64,23 @@ function log(text, className = "") {
     logElement.scrollTop = logElement.scrollHeight;
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function randomInterval(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-}
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function randomInterval(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
 
 async function toggleScraper() {
     if (isRunning) {
         isRunning = false;
         document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
-        log("[INFO] Stopping processing loops after current operation finishes...", "warning");
+        log("[INFO] Stopping processing loops cleanly...", "warning");
         return;
     }
 
     const url = document.getElementById("sbUrl").value;
     const key = document.getElementById("sbKey").value;
+    const backend = document.getElementById("phpBackendUrl").value;
     
-    if (!url || !key) {
-        alert("Please enter valid Supabase credentials.");
+    if (!url || !key || !backend) {
+        alert("Please complete the required URL and credential fields.");
         return;
     }
 
@@ -95,7 +88,7 @@ async function toggleScraper() {
     isRunning = true;
     document.getElementById("actionBtn").innerText = "Pause Scraper";
     logElement.innerHTML = ""; 
-    log("[LAUNCH] Core automation wrapper triggered successfully.", "info");
+    log("[LAUNCH] Backend proxy mapping linked successfully.", "info");
 
     try {
         await runScraperLoop();
@@ -109,39 +102,23 @@ async function toggleScraper() {
 async function fetchExistingRecords(anilistIds) {
     if (!anilistIds.length) return {};
     try {
-        const { data, error } = await supabaseClient
-            .from("1")
-            .select("anilist_id, link")
-            .in("anilist_id", anilistIds.map(String));
-        
+        const { data, error } = await supabaseClient.from("1").select("anilist_id, link").in("anilist_id", anilistIds.map(String));
         if (error) throw error;
-        
         const cache = {};
-        data.forEach(row => {
-            cache[parseInt(row.anilist_id)] = row.link || {};
-        });
+        data.forEach(row => { cache[parseInt(row.anilist_id)] = row.link || {}; });
         return cache;
     } catch (e) {
-        log(`[WARNING] Database validation cache lookup failed: ${e.message}`, "warning");
+        log(`[WARNING] Database lookup failed: ${e.message}`, "warning");
         return {};
     }
 }
 
 async function fetchCatalogBatch(offset) {
-    const proxy = document.getElementById("proxyUrl").value;
-    const targetUrl = "https://graphql.animex.one/graphql";
-    
+    const backend = document.getElementById("phpBackendUrl").value;
     const query = `
     query CatalogAnime($filter: AnimeCatalogFilterInput, $sort: [AnimeSortInput!], $limit: Int, $offset: Int) {
       catalogAnime(filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
-        items {
-          id
-          anilistId
-          titleRomaji
-          titleEnglish
-          subCount
-          dubCount
-        }
+        items { id anilistId titleRomaji titleEnglish subCount dubCount }
         hasNextPage
       }
     }`;
@@ -153,30 +130,28 @@ async function fetchCatalogBatch(offset) {
 
     await sleep(randomInterval(1000, 1500));
 
-    const res = await fetch(proxy + targetUrl, {
+    // Notice we POST straight to your clean fetch.php engine link
+    const res = await fetch(`${backend}?action=catalog`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(`HTTP Error context returned status: ${res.status}`);
+    if (!res.ok) throw new Error(`Backend response issue: ${res.status}`);
     const body = await res.json();
     return body.data?.catalogAnime || {};
 }
 
 async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks) {
-    const proxy = document.getElementById("proxyUrl").value;
+    const backend = document.getElementById("phpBackendUrl").value;
     const episodesMap = {};
     const taskQueue = [];
 
-    // Queue up missing sub tracks
     for (let ep = 1; ep <= subCount; ep++) {
         const key = `ep_${ep}_sub`;
         if (!(key in existingLinks)) taskQueue.push({ ep, type: "sub", retries: 0, backoff: 2000 });
         else episodesMap[key] = existingLinks[key];
     }
-
-    // Queue up missing dub tracks
     for (let ep = 1; ep <= dubCount; ep++) {
         const key = `ep_${ep}_dub`;
         if (!(key in existingLinks)) taskQueue.push({ ep, type: "dub", retries: 0, backoff: 2000 });
@@ -194,46 +169,35 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
 
         await sleep(randomInterval(1200, 1800));
 
-        const sourceUrl = `https://pp.animex.one/rest/api/sources?id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mochi`;
-
         try {
-            // Explicitly force the header required by the CORS proxy
-            const res = await fetch(proxy + sourceUrl, {
-                method: "GET",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Accept": "application/json"
-                }
-            });
+            // Routing request through the backend server action
+            const res = await fetch(`${backend}?action=sources&id=${uniqueSlug}&epNum=${ep}&type=${type}`);
             
             if (res.status === 429) {
                 if (retries < 2) {
                     task.retries++;
                     const wait = backoff + randomInterval(2000, 4000);
-                    log(`  [!] Rate limited on ${key}. Sleeping lane for ${(wait/1000).toFixed(2)}s...`, "warning");
+                    log(`  [!] Rate limited. Cooling down for ${(wait/1000).toFixed(2)}s...`, "warning");
                     await sleep(wait);
                     task.backoff *= 2;
-                    const pos = Math.min(6, taskQueue.length);
-                    taskQueue.splice(pos, 0, task);
+                    taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
                     continue;
                 } else {
-                    log(`  [!] Skip Warning: ${key} exceeded proxy retry caps. Skipping episode.`, "warning");
+                    log(`  [!] Skip Warning: ${key} skipped due to proxy restrictions.`, "warning");
                     continue;
                 }
             }
 
             if (res.ok) {
                 const data = await res.json();
-                
                 if (data.error === "episode not found") {
-                    log(`  [-] Verified 404: ${key} does not exist on server. Skipping.`, "info");
+                    log(`  [-] Verified 404: ${key} does not exist. Skipping.`, "info");
                     continue;
                 }
 
                 const sources = data.sources || [];
                 if (sources.length > 0 && sources[0].url) {
-                    const mutatedUrl = sources[0].url.replace("playeng.animeapps.top/r2", "bd.24stream.xyz/media");
-                    episodesMap[key] = mutatedUrl;
+                    episodesMap[key] = sources[0].url.replace("playeng.animeapps.top/r2", "bd.24stream.xyz/media");
                     log(`  [+] Success: ${key} mapped.`);
                     continue;
                 }
@@ -241,21 +205,19 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
             
             if (retries < 2) {
                 task.retries++;
-                const pos = Math.min(6, taskQueue.length);
-                taskQueue.splice(pos, 0, task);
-                log(`  [!] Error response tracking status ${res.status} on ${key}. Queueing retry.`, "warning");
+                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
+                log(`  [!] Error response status ${res.status} on ${key}. Retry queued.`, "warning");
             } else {
-                log(`  [!] Skip Warning: ${key} failed extraction. Skipping episode.`, "warning");
+                log(`  [!] Skip Warning: ${key} failed extraction. Skipping.`, "warning");
             }
 
         } catch (e) {
             if (retries < 2) {
                 task.retries++;
-                const pos = Math.min(6, taskQueue.length);
-                taskQueue.splice(pos, 0, task);
-                log(`  [!] Connection failure on group task ${key}. Queueing retry.`, "warning");
+                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
+                log(`  [!] Connection exception on ${key}. Retry queued.`, "warning");
             } else {
-                log(`  [!] Skip Warning: ${key} dropped out completely from connection limits. Skipping.`, "warning");
+                log(`  [!] Skip Warning: ${key} dropped completely from timeout errors.`, "warning");
             }
         }
     }
@@ -271,15 +233,11 @@ async function runScraperLoop() {
         log(`\n=================== FETCHING BATCH OFFSET: ${offset} ===================`, "info");
         document.getElementById("offsetInput").value = offset;
 
-        // FIXED TYPO HERE: Changed fetch_catalog_batch to fetchCatalogBatch
         const catalog = await fetchCatalogBatch(offset);
         const items = catalog.items || [];
         hasNextPage = catalog.hasNextPage || false;
 
-        if (items.length === 0) {
-            log("[INFO] Reached catalog boundary endpoint lists.", "info");
-            break;
-        }
+        if (items.length === 0) break;
 
         const batchIds = items.map(i => i.anilistId).filter(Boolean);
         const dbCache = await fetchExistingRecords(batchIds);
@@ -308,45 +266,29 @@ async function runScraperLoop() {
             }
 
             const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
-            log(`\n${label} ${title} (ID: ${anilistId}) | Missing scan validation triggered...`, "info");
+            log(`\n${label} ${title} (ID: ${anilistId}) | Extracting episodes...`, "info");
 
             const pipeline = await processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
             
-            if (!pipeline.success) {
-                log(`[INTERRUPTED] Flow dropped manually. Data sync dropped for ${title}.`, "interrupted");
-                continue;
-            }
-
-            if (Object.keys(pipeline.map).length === 0) {
-                log(`[INTERRUPTED] Empty parsed map output for ${title}. Skipping save.`, "warning");
-                continue;
-            }
+            if (!pipeline.success) continue;
+            if (Object.keys(pipeline.map).length === 0) continue;
 
             try {
                 const cleanSlug = uniqueSlug.includes('-') ? uniqueSlug.substring(0, uniqueSlug.lastIndexOf('-')) : uniqueSlug;
-                
                 const recordPayload = {
-                    anilist_id: String(anilist_id),
-                    title: title,
-                    slug: cleanSlug,
-                    unique_slug: uniqueSlug,
-                    link: pipeline.map,
-                    S: subCount,
-                    D: dubCount
+                    anilist_id: String(anilist_id), title, slug: cleanSlug, unique_slug: uniqueSlug,
+                    link: pipeline.map, S: subCount, D: dubCount
                 };
 
-                let dbRes;
-                if (isUpdate) {
-                    dbRes = await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(anilist_id));
-                } else {
-                    dbRes = await supabaseClient.from("1").insert([recordPayload]);
-                }
+                let dbRes = isUpdate ? 
+                    await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(anilist_id)) :
+                    await supabaseClient.from("1").insert([recordPayload]);
 
                 if (dbRes.error) throw dbRes.error;
                 log(`[SUCCESS] Committed records directly to DB row: ${title}`, "success");
 
             } catch (err) {
-                log(`[ERROR] Database write crash handling state entry: ${err.message}`, "interrupted");
+                log(`[ERROR] Database write failure: ${err.message}`, "interrupted");
             }
         }
 

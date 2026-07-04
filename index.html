@@ -32,8 +32,8 @@
         <label>Supabase Key</label>
         <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
         
-        <label>InfinityFree PHP Backend URL Link</label>
-        <input type="text" id="phpBackendUrl" value="animex-proxy.vercel.app">
+        <label>Vercel Proxy Backend URL Link</label>
+        <input type="text" id="phpBackendUrl" value="https://animex-proxy.vercel.app">
         
         <div class="row" style="margin-top: 15px;">
             <div>
@@ -56,9 +56,9 @@ let isRunning = false;
 let supabaseClient = null;
 const logElement = document.getElementById("terminal");
 
-// Proactive Pacing Config - Stalls the engine slightly to prevent 429 locks completely
-const MIN_EPISODE_DELAY = 1800; // Minimum 1.8 seconds per episode
-const MAX_EPISODE_DELAY = 2800; // Maximum 2.8 seconds per episode
+// Strict Safe Spacing Pacing Controls
+const MIN_EPISODE_DELAY = 2500; // Increased to 2.5 seconds minimum per link request
+const MAX_EPISODE_DELAY = 4500; // Up to 4.5 seconds maximum per link request
 
 function log(text, className = "") {
     const p = document.createElement("div");
@@ -92,7 +92,7 @@ async function toggleScraper() {
     isRunning = true;
     document.getElementById("actionBtn").innerText = "Pause Scraper";
     logElement.innerHTML = ""; 
-    log("[LAUNCH] Backend proxy mapping linked successfully.", "info");
+    log("[LAUNCH] Vercel Serverless proxy connected successfully.", "info");
 
     try {
         await runScraperLoop();
@@ -118,7 +118,7 @@ async function fetchExistingRecords(anilistIds) {
 }
 
 async function fetchCatalogBatch(offset) {
-    const backend = document.getElementById("phpBackendUrl").value;
+    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
     const query = `
     query CatalogAnime($filter: AnimeCatalogFilterInput, $sort: [AnimeSortInput!], $limit: Int, $offset: Int) {
       catalogAnime(filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
@@ -132,7 +132,7 @@ async function fetchCatalogBatch(offset) {
         variables: { filter: {}, sort: [{ field: "POPULARITY", direction: "DESC" }], limit: 30, offset: offset }
     };
 
-    await sleep(randomInterval(2000, 3500)); // Paced catalog request buffer
+    await sleep(randomInterval(3000, 5000)); // Paced catalog request buffer
 
     const res = await fetch(`${backend}?action=catalog`, {
         method: "POST",
@@ -146,18 +146,18 @@ async function fetchCatalogBatch(offset) {
 }
 
 async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks) {
-    const backend = document.getElementById("phpBackendUrl").value;
+    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
     const episodesMap = {};
     const taskQueue = [];
 
     for (let ep = 1; ep <= subCount; ep++) {
         const key = `ep_${ep}_sub`;
-        if (!(key in existingLinks)) taskQueue.push({ ep, type: "sub", retries: 0, backoff: 3000 });
+        if (!(key in existingLinks)) taskQueue.push({ ep, type: "sub", retries: 0, backoff: 4000 });
         else episodesMap[key] = existingLinks[key];
     }
     for (let ep = 1; ep <= dubCount; ep++) {
         const key = `ep_${ep}_dub`;
-        if (!(key in existingLinks)) taskQueue.push({ ep, type: "dub", retries: 0, backoff: 3000 });
+        if (!(key in existingLinks)) taskQueue.push({ ep, type: "dub", retries: 0, backoff: 4000 });
         else episodesMap[key] = existingLinks[key];
     }
 
@@ -170,7 +170,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
         const { ep, type, retries, backoff } = task;
         const key = `ep_${ep}_${type}`;
 
-        // INCREASED PROACTIVE DELAY: Safe spacing intervals prevent triggers
+        // STABLE RATE LIMITING FIX: Strictly pause long enough between every request execution
         await sleep(randomInterval(MIN_EPISODE_DELAY, MAX_EPISODE_DELAY));
 
         try {
@@ -179,14 +179,14 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
             if (res.status === 429) {
                 if (retries < 2) {
                     task.retries++;
-                    const wait = backoff + randomInterval(3000, 6000);
-                    log(`  [!] Rate limited on server. Cooling engine for ${(wait/1000).toFixed(2)}s...`, "warning");
+                    const wait = backoff + randomInterval(4000, 8000);
+                    log(`  [!] Rate limited. Cooling connection down for ${(wait/1000).toFixed(2)}s...`, "warning");
                     await sleep(wait);
                     task.backoff *= 2;
                     taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
                     continue;
                 } else {
-                    log(`  [!] Skip Warning: ${key} failed max retries via rate limits. Skipping item.`, "warning");
+                    log(`  [!] Skip Warning: ${key} failed after retries. Skipping.`, "warning");
                     continue;
                 }
             }
@@ -194,7 +194,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
             if (res.ok) {
                 const data = await res.json();
                 if (data.error === "episode not found") {
-                    log(`  [-] Verified 404: ${key} does not exist on remote host. Skipping.`);
+                    log(`  [-] Verified 404: ${key} does not exist. Skipping.`);
                     continue;
                 }
 
@@ -209,18 +209,18 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
             if (retries < 2) {
                 task.retries++;
                 taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
-                log(`  [!] Response tracking status ${res.status} on ${key}. Retry queued.`, "warning");
+                log(`  [!] Response status ${res.status} on ${key}. Retry queued.`, "warning");
             } else {
-                log(`  [!] Skip Warning: ${key} failed extraction criteria. Skipping episode.`, "warning");
+                log(`  [!] Skip Warning: ${key} failed extraction criteria. Skipping.`, "warning");
             }
 
         } catch (e) {
             if (retries < 2) {
                 task.retries++;
                 taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
-                log(`  [!] Network anomaly processing ${key}. Retry scheduled.`, "warning");
+                log(`  [!] Connection issue on ${key}. Retry queued.`, "warning");
             } else {
-                log(`  [!] Skip Warning: ${key} dropped from persistent socket timeouts. Skipping.`, "warning");
+                log(`  [!] Skip Warning: ${key} dropped out from timeouts. Skipping.`, "warning");
             }
         }
     }
@@ -278,6 +278,8 @@ async function runScraperLoop() {
 
             try {
                 const cleanSlug = uniqueSlug.includes('-') ? uniqueSlug.substring(0, uniqueSlug.lastIndexOf('-')) : uniqueSlug;
+                
+                // CRITICAL VARIABLE REFERENCE FIX: Using exact anilistId instead of broken variable declarations
                 const recordPayload = {
                     anilist_id: String(anilistId), 
                     title: title, 
@@ -290,7 +292,6 @@ async function runScraperLoop() {
 
                 let dbRes;
                 if (isUpdate) {
-                    // FIXED: Replaced reference typo from anime_title to title, and assigned query eq filters properly
                     dbRes = await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(anilistId));
                 } else {
                     dbRes = await supabaseClient.from("1").insert([recordPayload]);
@@ -305,7 +306,7 @@ async function runScraperLoop() {
         }
 
         offset += 30;
-        await sleep(randomInterval(4000, 7000)); // Large page chunk transition delay
+        await sleep(randomInterval(6000, 10000)); // Safe transition spacing between massive catalog blocks
     }
 
     if (!hasNextPage) {

@@ -57,8 +57,8 @@ let supabaseClient = null;
 const logElement = document.getElementById("terminal");
 
 // Strict Safe Spacing Pacing Controls
-const MIN_EPISODE_DELAY = 2500; // Increased to 2.5 seconds minimum per link request
-const MAX_EPISODE_DELAY = 4500; // Up to 4.5 seconds maximum per link request
+const MIN_EPISODE_DELAY = 5000; // Increased to 2.5 seconds minimum per link request
+const MAX_EPISODE_DELAY = 10000; // Up to 4.5 seconds maximum per link request
 
 function log(text, className = "") {
     const p = document.createElement("div");

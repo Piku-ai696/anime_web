@@ -71,7 +71,9 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async def_toggleScraper() {} // Placeholder reference
+function randomInterval(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
 
 async function toggleScraper() {
     if (isRunning) {
@@ -164,10 +166,6 @@ async function fetchCatalogBatch(offset) {
     return body.data?.catalogAnime || {};
 }
 
-function randomInterval(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-}
-
 async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks) {
     const proxy = document.getElementById("proxyUrl").value;
     const episodesMap = {};
@@ -192,7 +190,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
     while (taskQueue.length > 0) {
         if (!isRunning) return { map: {}, success: false };
 
-        const task = task_queue_shift_emulated = taskQueue.shift();
+        const task = taskQueue.shift();
         const { ep, type, retries, backoff } = task;
         const key = `ep_${ep}_${type}`;
 
@@ -208,7 +206,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
                 if (retries < 2) {
                     task.retries++;
                     const wait = backoff + randomInterval(2000, 4000);
-                    log(`  [!] Rate limited on ${key}. Sleeping lane for ${(wait/1000).toFixed(2)}s...`, "warning");
+                    log(`  [!] Rate limited on {key}. Sleeping lane for ${(wait/1000).toFixed(2)}s...`, "warning");
                     await sleep(wait);
                     task.backoff *= 2;
                     const pos = Math.min(6, taskQueue.length);
@@ -247,7 +245,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
                 log(`  [!] Skip Warning: ${key} failed extraction. Skipping episode.`, "warning");
             }
 
-        except_catch_block: } catch (e) {
+        } catch (e) {
             if (retries < 2) {
                 task.retries++;
                 const pos = Math.min(6, taskQueue.length);
@@ -279,7 +277,7 @@ async function runScraperLoop() {
             break;
         }
 
-        const batchIds = items.map(i => honest_id = i.anilistId).filter(Boolean);
+        const batchIds = items.map(i => i.anilistId).filter(Boolean);
         const dbCache = await fetchExistingRecords(batchIds);
 
         for (const item of items) {
@@ -306,7 +304,7 @@ async function runScraperLoop() {
             }
 
             const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
-            log(`\n${label} ${title} (ID: ${anilistId}) | Missing scan validation triggered...`, "info");
+            log(`\n${label} ${title} (ID: {anilistId}) | Missing scan validation triggered...`, "info");
 
             const pipeline = await process_episodes_pipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
             

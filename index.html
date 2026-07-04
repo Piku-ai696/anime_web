@@ -197,7 +197,14 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
         const sourceUrl = `https://pp.animex.one/rest/api/sources?id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mochi`;
 
         try {
-            const res = await fetch(proxy + sourceUrl);
+            // Explicitly force the header required by the CORS proxy
+            const res = await fetch(proxy + sourceUrl, {
+                method: "GET",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json"
+                }
+            });
             
             if (res.status === 429) {
                 if (retries < 2) {

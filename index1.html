@@ -215,7 +215,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
             }
 
         } catch (e) {
-            if (retries < 2) {
+            if (retries < 1) {
                 task.retries++;
                 taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
                 log(`  [!] Connection issue on ${key}. Retry queued.`, "warning");

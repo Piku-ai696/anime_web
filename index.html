@@ -269,7 +269,7 @@ async function runScraperLoop() {
             }
 
             const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
-            log(`\n${label} ${title} (ID: ${anilistId}) | Extracting episodes...`, "info");
+            log(`\n${label} ${title} (ID: ${anilistId}) ${subCount} ${dubCount}| Extracting episodes...`, "info");
 
             const pipeline = await processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
             

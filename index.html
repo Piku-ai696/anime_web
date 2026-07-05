@@ -174,7 +174,7 @@ async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingL
         await sleep(randomInterval(MIN_EPISODE_DELAY, MAX_EPISODE_DELAY));
 
         try {
-            const res = await fetch(`${backend}?action=sources&id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mochi`);
+            const res = await fetch(`${backend}?action=sources&id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mimi`);
             
             if (res.status === 429) {
                 if (retries < 2) {

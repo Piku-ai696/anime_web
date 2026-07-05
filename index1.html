@@ -1,1 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paced Anime Scraper Panel</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121214; color: #e1e1e6; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .card { background: #202024; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #323238; }
+        input, button { background: #121214; color: #fff; border: 1px solid #48484a; padding: 10px; border-radius: 4px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        input:focus { border-color: #7c4dff; outline: none; }
+        button { background: #7c4dff; cursor: pointer; font-weight: bold; border: none; margin-top: 15px; }
+        button:hover { background: #9466ff; }
+        #terminal { background: #000; font-family: "Courier New", Courier, monospace; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; font-size: 13px; line-height: 1.4; border: 1px solid #29292e; }
+        .success { color: #00e676; }
+        .interrupted { color: #ff5252; }
+        .warning { color: #ffd740; }
+        .info { color: #40c4ff; }
+        .row { display: flex; gap: 10px; }
+        .row input { flex: 1; }
+    </style>
+</head>
+<body>
 
+    <h2>Paced Anime Scraper Panel</h2>
+    
+    <div class="card">
+        <h3>Configuration & Credentials</h3>
+        <label>Supabase URL</label>
+        <input type="text" id="sbUrl" value="https://ucgxzganknweqfucjqqw.supabase.co">
+        <label>Supabase Key</label>
+        <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
+        
+        <label>Vercel Proxy Backend URL Link</label>
+        <input type="text" id="phpBackendUrl" value="https://animex-proxy-gbmr.vercel.app">
+        
+        <div class="row" style="margin-top: 15px;">
+            <div>
+                <label>Starting Offset Index</label>
+                <input type="number" id="offsetInput" value="0">
+            </div>
+            <div style="flex: 2; display: flex; align-items: flex-end;">
+                <button id="actionBtn" onclick="toggleScraper()">Start Scraper Pipeline</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Live Terminal Execution Output</h3>
+        <div id="terminal">--- Scraper Idle. Click Start to commence sync ---</div>
+    </div>
+
+<script>
+let isRunning = false;
+let supabaseClient = null;
+const logElement = document.getElementById("terminal");
+
+// Strict Safe Spacing Pacing Controls
+const MIN_EPISODE_DELAY = 5000; // Increased to 2.5 seconds minimum per link request
+const MAX_EPISODE_DELAY = 10000; // Up to 4.5 seconds maximum per link request
+
+function log(text, className = "") {
+    const p = document.createElement("div");
+    if (className) p.className = className;
+    p.innerText = text;
+    logElement.appendChild(p);
+    logElement.scrollTop = logElement.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function randomInterval(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
+
+async function toggleScraper() {
+    if (isRunning) {
+        isRunning = false;
+        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
+        log("[INFO] Stopping processing loops cleanly...", "warning");
+        return;
+    }
+
+    const url = document.getElementById("sbUrl").value;
+    const key = document.getElementById("sbKey").value;
+    const backend = document.getElementById("phpBackendUrl").value;
+    
+    if (!url || !key || !backend) {
+        alert("Please complete the required URL, Key, and Backend proxy fields.");
+        return;
+    }
+
+    supabaseClient = supabase.createClient(url, key);
+    isRunning = true;
+    document.getElementById("actionBtn").innerText = "Pause Scraper";
+    logElement.innerHTML = ""; 
+    log("[LAUNCH] Vercel Serverless proxy connected successfully.", "info");
+
+    try {
+        await runScraperLoop();
+    } catch (e) {
+        log(`[CRITICAL] Scraper loop failure: ${e.message}`, "interrupted");
+        isRunning = false;
+        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
+    }
+}
+
+async function fetchExistingRecords(anilistIds) {
+    if (!anilistIds.length) return {};
+    try {
+        const { data, error } = await supabaseClient.from("1").select("anilist_id, link").in("anilist_id", anilistIds.map(String));
+        if (error) throw error;
+        const cache = {};
+        data.forEach(row => { cache[parseInt(row.anilist_id)] = row.link || {}; });
+        return cache;
+    } catch (e) {
+        log(`[WARNING] Database lookup failed: ${e.message}`, "warning");
+        return {};
+    }
+}
+
+async function fetchCatalogBatch(offset) {
+    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
+    const query = `
+    query CatalogAnime($filter: AnimeCatalogFilterInput, $sort: [AnimeSortInput!], $limit: Int, $offset: Int) {
+      catalogAnime(filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
+        items { id anilistId titleRomaji titleEnglish subCount dubCount }
+        hasNextPage
+      }
+    }`;
+
+    const payload = {
+        query: query,
+        variables: { filter: {}, sort: [{ field: "POPULARITY", direction: "DESC" }], limit: 30, offset: offset }
+    };
+
+    await sleep(randomInterval(3000, 5000)); // Paced catalog request buffer
+
+    const res = await fetch(`${backend}?action=catalog`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Backend response issue: ${res.status}`);
+    const body = await res.json();
+    return body.data?.catalogAnime || {};
+}
+
+async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks) {
+    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
+    const episodesMap = {};
+    const taskQueue = [];
+
+    for (let ep = 1; ep <= subCount; ep++) {
+        const key = `ep_${ep}_sub`;
+        if (!(key in existingLinks)) taskQueue.push({ ep, type: "sub", retries: 0, backoff: 4000 });
+        else episodesMap[key] = existingLinks[key];
+    }
+    for (let ep = 1; ep <= dubCount; ep++) {
+        const key = `ep_${ep}_dub`;
+        if (!(key in existingLinks)) taskQueue.push({ ep, type: "dub", retries: 0, backoff: 4000 });
+        else episodesMap[key] = existingLinks[key];
+    }
+
+    if (taskQueue.length === 0) return { map: episodesMap, success: true };
+
+    while (taskQueue.length > 0) {
+        if (!isRunning) return { map: {}, success: false };
+
+        const task = taskQueue.shift();
+        const { ep, type, retries, backoff } = task;
+        const key = `ep_${ep}_${type}`;
+
+        // STABLE RATE LIMITING FIX: Strictly pause long enough between every request execution
+        await sleep(randomInterval(MIN_EPISODE_DELAY, MAX_EPISODE_DELAY));
+
+        try {
+            const res = await fetch(`${backend}?action=sources&id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mimi`);
+            
+            if (res.status === 429) {
+                if (retries < 2) {
+                    task.retries++;
+                    const wait = backoff + randomInterval(4000, 8000);
+                    log(`  [!] Rate limited. Cooling connection down for ${(wait/1000).toFixed(2)}s...`, "warning");
+                    await sleep(wait);
+                    task.backoff *= 2;
+                    taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
+                    continue;
+                } else {
+                    log(`  [!] Skip Warning: ${key} failed after retries. Skipping.`, "warning");
+                    continue;
+                }
+            }
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.error === "episode not found") {
+                    log(`  [-] Verified 404: ${key} does not exist. Skipping.`);
+                    continue;
+                }
+
+                const sources = data.sources || [];
+                if (sources.length > 0 && sources[0].url) {
+                    episodesMap[key] = sources[0].url.replace("playeng.animeapps.top/r2", "bd.24stream.xyz/media");
+                    log(`  [+] Success: ${key} mapped.`);
+                    continue;
+                }
+            }
+            
+            if (retries < 2) {
+                task.retries++;
+                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
+                log(`  [!] Response status ${res.status} on ${key}. Retry queued.`, "warning");
+            } else {
+                log(`  [!] Skip Warning: ${key} failed extraction criteria. Skipping.`, "warning");
+            }
+
+        } catch (e) {
+            if (retries < 2) {
+                task.retries++;
+                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
+                log(`  [!] Connection issue on ${key}. Retry queued.`, "warning");
+            } else {
+                log(`  [!] Skip Warning: ${key} dropped out from timeouts. Skipping.`, "warning");
+            }
+        }
+    }
+
+    return { map: episodesMap, success: true };
+}
+
+async function runScraperLoop() {
+    let offset = parseInt(document.getElementById("offsetInput").value) || 0;
+    let hasNextPage = true;
+
+    while (hasNextPage && isRunning) {
+        log(`\n=================== FETCHING BATCH OFFSET: ${offset} ===================`, "info");
+        document.getElementById("offsetInput").value = offset;
+
+        const catalog = await fetchCatalogBatch(offset);
+        const items = catalog.items || [];
+        hasNextPage = catalog.hasNextPage || false;
+
+        if (items.length === 0) break;
+
+        const batchIds = items.map(i => i.anilistId).filter(Boolean);
+        const dbCache = await fetchExistingRecords(batchIds);
+
+        for (const item of items) {
+            if (!isRunning) return;
+
+            const anilistId = item.anilistId;
+            const uniqueSlug = item.id;
+            const title = item.titleEnglish || item.titleRomaji;
+
+            if (!anilistId || !uniqueSlug) continue;
+
+            const subCount = item.subCount || 0;
+            const dubCount = item.dubCount || 0;
+            const expectedKeys = subCount + dubCount;
+
+            if (expectedKeys === 0) continue;
+
+            const existingLinks = dbCache[anilistId];
+            const isUpdate = anilistId in dbCache;
+
+            if (isUpdate && Object.keys(existingLinks).length >= expectedKeys) {
+                log(`[SKIP Complete] ${title} verified fully up-to-date.`);
+                continue;
+            }
+
+            const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
+            log(`\n${label} ${title} (ID: ${anilistId}) (Sub: ${subCount}) (Dub: ${dubCount})| Extracting episodes...`, "info");
+
+            const pipeline = await processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
+            
+            if (!pipeline.success) continue;
+            if (Object.keys(pipeline.map).length === 0) continue;
+
+            try {
+                const cleanSlug = uniqueSlug.includes('-') ? uniqueSlug.substring(0, uniqueSlug.lastIndexOf('-')) : uniqueSlug;
+                
+                // CRITICAL VARIABLE REFERENCE FIX: Using exact anilistId instead of broken variable declarations
+                const recordPayload = {
+                    anilist_id: String(anilistId), 
+                    title: title, 
+                    slug: cleanSlug, 
+                    unique_slug: uniqueSlug,
+                    link: pipeline.map, 
+                    S: subCount, 
+                    D: dubCount
+                };
+
+                let dbRes;
+                if (isUpdate) {
+                    dbRes = await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(anilistId));
+                } else {
+                    dbRes = await supabaseClient.from("1").insert([recordPayload]);
+                }
+
+                if (dbRes.error) throw dbRes.error;
+                log(`[SUCCESS] Committed records directly to DB row: ${title}`, "success");
+
+            } catch (err) {
+                log(`[ERROR] Database write failure: ${err.message}`, "interrupted");
+            }
+        }
+
+        offset += 30;
+        await sleep(randomInterval(6000, 10000)); // Safe transition spacing between massive catalog blocks
+    }
+
+    if (!hasNextPage) {
+        log("\n[COMPLETE] Automation pipeline reached boundary limits successfully.", "success");
+        isRunning = false;
+        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
+    }
+}
+</script>
+</body>
+</html>

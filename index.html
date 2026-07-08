@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paced Anime Scraper Panel</title>
+    <title>Unlimited Local High-Speed Scraper</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121214; color: #e1e1e6; padding: 20px; max-width: 800px; margin: 0 auto; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121214; color: #e1e1e6; padding: 20px; max-width: 850px; margin: 0 auto; }
         .card { background: #202024; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #323238; }
         input, button { background: #121214; color: #fff; border: 1px solid #48484a; padding: 10px; border-radius: 4px; margin: 5px 0; width: 100%; box-sizing: border-box; }
         input:focus { border-color: #7c4dff; outline: none; }
@@ -14,51 +14,48 @@
         button:hover { background: #9466ff; }
         #terminal { background: #000; font-family: "Courier New", Courier, monospace; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; font-size: 13px; line-height: 1.4; border: 1px solid #29292e; }
         .success { color: #00e676; }
-        .interrupted { color: #ff5252; }
         .warning { color: #ffd740; }
         .info { color: #40c4ff; }
         .row { display: flex; gap: 10px; }
-        .row input { flex: 1; }
+        .row div { flex: 1; }
     </style>
 </head>
 <body>
 
-    <h2>Paced Anime Scraper Panel</h2>
+    <h2>Unlimited Local High-Speed Scraper</h2>
     
     <div class="card">
-        <h3>Configuration & Credentials</h3>
+        <h3>Configuration Panel</h3>
         <label>Supabase URL</label>
         <input type="text" id="sbUrl" value="https://ucgxzganknweqfucjqqw.supabase.co">
         <label>Supabase Key</label>
         <input type="password" id="sbKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZ3h6Z2Fua253ZXFmdWNqcXF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTE5OTczNywiZXhwIjoyMDk0Nzc1NzM3fQ.yEap0n7fCuy44Ox0YXZpj4_cf3wO7IS6oJWA6sk0GqY">
         
-        <label>Vercel Proxy Backend URL Link</label>
-        <input type="text" id="phpBackendUrl" value="https://animex-proxy-gbmr.vercel.app">
-        
         <div class="row" style="margin-top: 15px;">
             <div>
-                <label>Starting Offset Index</label>
+                <label>Starting Offset</label>
                 <input type="number" id="offsetInput" value="0">
             </div>
-            <div style="flex: 2; display: flex; align-items: flex-end;">
-                <button id="actionBtn" onclick="toggleScraper()">Start Scraper Pipeline</button>
+            <div>
+                <label>Concurrent Chunk Size</label>
+                <input type="number" id="chunkSizeInput" value="100">
+            </div>
+            <div style="flex: 1.5; display: flex; align-items: flex-end;">
+                <button id="actionBtn" onclick="toggleScraper()">Launch Unlimited Sync</button>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Live Terminal Execution Output</h3>
-        <div id="terminal">--- Scraper Idle. Click Start to commence sync ---</div>
+        <h3>Live Processing Console</h3>
+        <div id="terminal">--- System Idle. Run server.js locally and click Launch ---</div>
     </div>
 
 <script>
 let isRunning = false;
 let supabaseClient = null;
+const LOCAL_PROXY = "http://localhost:9999";
 const logElement = document.getElementById("terminal");
-
-// Strict Safe Spacing Pacing Controls
-const MIN_EPISODE_DELAY = 5000; // Increased to 2.5 seconds minimum per link request
-const MAX_EPISODE_DELAY = 10000; // Up to 4.5 seconds maximum per link request
 
 function log(text, className = "") {
     const p = document.createElement("div");
@@ -69,162 +66,87 @@ function log(text, className = "") {
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-function randomInterval(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
 
-async function toggleScraper() {
+function toggleScraper() {
     if (isRunning) {
         isRunning = false;
-        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
-        log("[INFO] Stopping processing loops cleanly...", "warning");
+        document.getElementById("actionBtn").innerText = "Launch Unlimited Sync";
         return;
     }
-
     const url = document.getElementById("sbUrl").value;
     const key = document.getElementById("sbKey").value;
-    const backend = document.getElementById("phpBackendUrl").value;
     
-    if (!url || !key || !backend) {
-        alert("Please complete the required URL, Key, and Backend proxy fields.");
-        return;
-    }
-
     supabaseClient = supabase.createClient(url, key);
     isRunning = true;
-    document.getElementById("actionBtn").innerText = "Pause Scraper";
-    logElement.innerHTML = ""; 
-    log("[LAUNCH] Vercel Serverless proxy connected successfully.", "info");
+    document.getElementById("actionBtn").innerText = "Pause System";
+    logElement.innerHTML = "";
+    log("[SYSTEM START] Local core loop active. No limits plan applied.", "info");
 
-    try {
-        await runScraperLoop();
-    } catch (e) {
-        log(`[CRITICAL] Scraper loop failure: ${e.message}`, "interrupted");
+    runScraperLoop().catch(e => {
+        log(`[CRITICAL] Error: ${e.message}`, "interrupted");
         isRunning = false;
-        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
-    }
+    });
 }
 
 async function fetchExistingRecords(anilistIds) {
     if (!anilistIds.length) return {};
-    try {
-        const { data, error } = await supabaseClient.from("1").select("anilist_id, link").in("anilist_id", anilistIds.map(String));
-        if (error) throw error;
-        const cache = {};
-        data.forEach(row => { cache[parseInt(row.anilist_id)] = row.link || {}; });
-        return cache;
-    } catch (e) {
-        log(`[WARNING] Database lookup failed: ${e.message}`, "warning");
-        return {};
-    }
+    const { data } = await supabaseClient.from("1").select("anilist_id, link").in("anilist_id", anilistIds.map(String));
+    const cache = {};
+    (data || []).forEach(row => { cache[parseInt(row.anilist_id)] = row.link || {}; });
+    return cache;
 }
 
 async function fetchCatalogBatch(offset) {
-    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
-    const query = `
-    query CatalogAnime($filter: AnimeCatalogFilterInput, $sort: [AnimeSortInput!], $limit: Int, $offset: Int) {
+    const query = `query CatalogAnime($filter: AnimeCatalogFilterInput, $sort: [AnimeSortInput!], $limit: Int, $offset: Int) {
       catalogAnime(filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
-        items { id anilistId titleRomaji titleEnglish subCount dubCount }
+        items { id anilistId titleEnglish titleRomaji subCount dubCount }
         hasNextPage
       }
     }`;
-
-    const payload = {
-        query: query,
-        variables: { filter: {}, sort: [{ field: "POPULARITY", direction: "DESC" }], limit: 30, offset: offset }
-    };
-
-    await sleep(randomInterval(3000, 5000)); // Paced catalog request buffer
-
-    const res = await fetch(`${backend}?action=catalog`, {
+    const res = await fetch(`${LOCAL_PROXY}/catalog`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ query, variables: { filter: {}, sort: [{ field: "POPULARITY", direction: "DESC" }], limit: 30, offset } })
     });
-
-    if (!res.ok) throw new Error(`Backend response issue: ${res.status}`);
     const body = await res.json();
     return body.data?.catalogAnime || {};
 }
 
 async function processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks) {
-    const backend = document.getElementById("phpBackendUrl").value.replace(/\/$/, "");
-    const episodesMap = {};
+    const chunkSize = parseInt(document.getElementById("chunkSizeInput").value) || 100;
+    const episodesMap = { ...existingLinks };
     const taskQueue = [];
 
-    for (let ep = 1; ep <= subCount; ep++) {
-        const key = `ep_${ep}_sub`;
-        if (!(key in existingLinks)) taskQueue.push({ ep, type: "sub", retries: 0, backoff: 4000 });
-        else episodesMap[key] = existingLinks[key];
-    }
-    for (let ep = 1; ep <= dubCount; ep++) {
-        const key = `ep_${ep}_dub`;
-        if (!(key in existingLinks)) taskQueue.push({ ep, type: "dub", retries: 0, backoff: 4000 });
-        else episodesMap[key] = existingLinks[key];
-    }
+    for (let e = 1; e <= subCount; e++) if (!(`ep_${e}_sub` in episodesMap)) taskQueue.push({ e, type: "sub" });
+    for (let e = 1; e <= dubCount; e++) if (!(`ep_${e}_dub` in episodesMap)) taskQueue.push({ e, type: "dub" });
 
-    if (taskQueue.length === 0) return { map: episodesMap, success: true };
+    if (!taskQueue.length) return { map: episodesMap, success: true };
 
-    while (taskQueue.length > 0) {
+    log(`  [*] Processing ${taskQueue.length} items in parallel chunks of ${chunkSize}...`);
+
+    for (let i = 0; i < taskQueue.length; i += chunkSize) {
         if (!isRunning) return { map: {}, success: false };
+        const chunk = taskQueue.slice(i, i + chunkSize);
 
-        const task = taskQueue.shift();
-        const { ep, type, retries, backoff } = task;
-        const key = `ep_${ep}_${type}`;
+        const promises = chunk.map(task => {
+            const key = `ep_${task.e}_${task.type}`;
+            return fetch(`${LOCAL_PROXY}/sources?id=${uniqueSlug}&epNum=${task.e}&type=${task.type}`)
+                .then(async res => {
+                    if (!res.ok) return { key, status: "fail" };
+                    const data = await res.json();
+                    if (data.error === "episode not found") return { key, status: "404" };
+                    if (data.sources?.[0]?.url) {
+                        return { key, status: "ok", url: data.sources[0].url.replace("playeng.animeapps.top/r2", "bd.24stream.xyz/media") };
+                    }
+                    return { key, status: "fail" };
+                }).catch(() => ({ key, status: "fail" }));
+        });
 
-        // STABLE RATE LIMITING FIX: Strictly pause long enough between every request execution
-        await sleep(randomInterval(MIN_EPISODE_DELAY, MAX_EPISODE_DELAY));
-
-        try {
-            const res = await fetch(`${backend}?action=sources&id=${uniqueSlug}&epNum=${ep}&type=${type}&providerId=mimi`);
-            
-            if (res.status === 429) {
-                if (retries < 2) {
-                    task.retries++;
-                    const wait = backoff + randomInterval(4000, 8000);
-                    log(`  [!] Rate limited. Cooling connection down for ${(wait/1000).toFixed(2)}s...`, "warning");
-                    await sleep(wait);
-                    task.backoff *= 2;
-                    taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
-                    continue;
-                } else {
-                    log(`  [!] Skip Warning: ${key} failed after retries. Skipping.`, "warning");
-                    continue;
-                }
-            }
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.error === "episode not found") {
-                    log(`  [-] Verified 404: ${key} does not exist. Skipping.`);
-                    continue;
-                }
-
-                const sources = data.sources || [];
-                if (sources.length > 0 && sources[0].url) {
-                    episodesMap[key] = sources[0].url.replace("playeng.animeapps.top/r2", "bd.24stream.xyz/media");
-                    log(`  [+] Success: ${key} mapped.`);
-                    continue;
-                }
-            }
-            
-            if (retries < 2) {
-                task.retries++;
-                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
-                log(`  [!] Response status ${res.status} on ${key}. Retry queued.`, "warning");
-            } else {
-                log(`  [!] Skip Warning: ${key} failed extraction criteria. Skipping.`, "warning");
-            }
-
-        } catch (e) {
-            if (retries < 1) {
-                task.retries++;
-                taskQueue.splice(Math.min(6, taskQueue.length), 0, task);
-                log(`  [!] Connection issue on ${key}. Retry queued.`, "warning");
-            } else {
-                log(`  [!] Skip Warning: ${key} dropped out from timeouts. Skipping.`, "warning");
-            }
-        }
+        const results = await Promise.all(promises);
+        results.forEach(r => { if (r.status === "ok") episodesMap[r.key] = r.url; });
+        log(`  [+] Chunk progress: ${i + chunk.length}/${taskQueue.length} synced.`);
+        await sleep(50); // Minimal resting gap
     }
-
     return { map: episodesMap, success: true };
 }
 
@@ -233,86 +155,47 @@ async function runScraperLoop() {
     let hasNextPage = true;
 
     while (hasNextPage && isRunning) {
-        log(`\n=================== FETCHING BATCH OFFSET: ${offset} ===================`, "info");
+        log(`\n=================== CATALOG OFFSET: ${offset} ===================`, "info");
         document.getElementById("offsetInput").value = offset;
 
         const catalog = await fetchCatalogBatch(offset);
         const items = catalog.items || [];
         hasNextPage = catalog.hasNextPage || false;
+        if (!items.length) break;
 
-        if (items.length === 0) break;
-
-        const batchIds = items.map(i => i.anilistId).filter(Boolean);
-        const dbCache = await fetchExistingRecords(batchIds);
+        const dbCache = await fetchExistingRecords(items.map(i => i.anilistId).filter(Boolean));
 
         for (const item of items) {
             if (!isRunning) return;
+            const expected = (item.subCount || 0) + (item.dubCount || 0);
+            if (!expected) continue;
 
-            const anilistId = item.anilistId;
-            const uniqueSlug = item.id;
-            const title = item.titleEnglish || item.titleRomaji;
-
-            if (!anilistId || !uniqueSlug) continue;
-
-            const subCount = item.subCount || 0;
-            const dubCount = item.dubCount || 0;
-            const expectedKeys = subCount + dubCount;
-
-            if (expectedKeys === 0) continue;
-
-            const existingLinks = dbCache[anilistId];
-            const isUpdate = anilistId in dbCache;
-
-            if (isUpdate && Object.keys(existingLinks).length >= expectedKeys) {
-                log(`[SKIP Complete] ${title} verified fully up-to-date.`);
+            const cache = dbCache[item.anilistId] || {};
+            if (item.anilistId in dbCache && Object.keys(cache).length >= expected) {
+                log(`[SKIP] ${item.titleEnglish || item.titleRomaji}`);
                 continue;
             }
 
-            const label = isUpdate ? "[UPDATING MISSING]" : "[TARGETING NEW]";
-            log(`\n${label} ${title} (ID: ${anilistId}) (Sub: ${subCount}) (Dub: ${dubCount})| Extracting episodes...`, "info");
-
-            const pipeline = await processEpisodesPipeline(uniqueSlug, subCount, dubCount, existingLinks || {});
-            
-            if (!pipeline.success) continue;
-            if (Object.keys(pipeline.map).length === 0) continue;
+            log(`\n[*] Targeting: ${item.titleEnglish || item.titleRomaji}`, "info");
+            const pipeline = await processEpisodesPipeline(item.id, item.subCount || 0, item.dubCount || 0, cache);
+            if (!pipeline.success || !Object.keys(pipeline.map).length) continue;
 
             try {
-                const cleanSlug = uniqueSlug.includes('-') ? uniqueSlug.substring(0, uniqueSlug.lastIndexOf('-')) : uniqueSlug;
+                const cleanSlug = item.id.includes('-') ? item.id.substring(0, item.id.lastIndexOf('-')) : item.id;
+                const payload = { anilist_id: String(item.anilistId), title: item.titleEnglish || item.titleRomaji, slug: cleanSlug, unique_slug: item.id, link: pipeline.map, S: item.subCount || 0, D: item.dubCount || 0 };
                 
-                // CRITICAL VARIABLE REFERENCE FIX: Using exact anilistId instead of broken variable declarations
-                const recordPayload = {
-                    anilist_id: String(anilistId), 
-                    title: title, 
-                    slug: cleanSlug, 
-                    unique_slug: uniqueSlug,
-                    link: pipeline.map, 
-                    S: subCount, 
-                    D: dubCount
-                };
-
-                let dbRes;
-                if (isUpdate) {
-                    dbRes = await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(anilistId));
+                if (item.anilistId in dbCache) {
+                    await supabaseClient.from("1").update({ link: pipeline.map }).eq("anilist_id", String(item.anilistId));
                 } else {
-                    dbRes = await supabaseClient.from("1").insert([recordPayload]);
+                    await supabaseClient.from("1").insert([payload]);
                 }
-
-                if (dbRes.error) throw dbRes.error;
-                log(`[SUCCESS] Committed records directly to DB row: ${title}`, "success");
-
+                log(`[SUCCESS] Database updated: ${item.titleEnglish || item.titleRomaji}`, "success");
             } catch (err) {
-                log(`[ERROR] Database write failure: ${err.message}`, "interrupted");
+                log(`[ERROR] DB Save Error: ${err.message}`);
             }
         }
-
         offset += 30;
-        await sleep(randomInterval(6000, 10000)); // Safe transition spacing between massive catalog blocks
-    }
-
-    if (!hasNextPage) {
-        log("\n[COMPLETE] Automation pipeline reached boundary limits successfully.", "success");
-        isRunning = false;
-        document.getElementById("actionBtn").innerText = "Start Scraper Pipeline";
+        await sleep(500);
     }
 }
 </script>
